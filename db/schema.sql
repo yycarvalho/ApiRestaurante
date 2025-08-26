@@ -85,8 +85,10 @@ CREATE TABLE IF NOT EXISTS order_chat_messages (
   order_id VARCHAR(32) NOT NULL,
   sender ENUM('customer','system','user') NOT NULL,
   message TEXT NOT NULL,
+  user_id BIGINT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 -- Customer conversation history (full conversation outside order context)
@@ -96,8 +98,10 @@ CREATE TABLE IF NOT EXISTS customer_messages (
   direction ENUM('inbound','outbound') NOT NULL,
   channel VARCHAR(30) DEFAULT 'chat',
   message TEXT NOT NULL,
+  user_id BIGINT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 -- System logs
@@ -113,6 +117,76 @@ CREATE TABLE IF NOT EXISTS system_logs (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_logs_level (level),
   INDEX idx_logs_actor (actor_username)
+) ENGINE=InnoDB;
+
+-- Audit trail for all system changes
+CREATE TABLE IF NOT EXISTS audit_trail (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  table_name VARCHAR(100) NOT NULL,
+  record_id VARCHAR(100) NOT NULL,
+  action ENUM('CREATE', 'UPDATE', 'DELETE') NOT NULL,
+  old_values JSON,
+  new_values JSON,
+  actor_user_id BIGINT,
+  actor_username VARCHAR(100),
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_table (table_name),
+  INDEX idx_audit_record (record_id),
+  INDEX idx_audit_actor (actor_user_id),
+  INDEX idx_audit_action (action)
+) ENGINE=InnoDB;
+
+-- User activity logs
+CREATE TABLE IF NOT EXISTS user_activity_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  username VARCHAR(100) NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  details TEXT,
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  session_id VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_activity_user (user_id),
+  INDEX idx_user_activity_action (action),
+  INDEX idx_user_activity_session (session_id)
+) ENGINE=InnoDB;
+
+-- Password change history
+CREATE TABLE IF NOT EXISTS password_change_history (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  username VARCHAR(100) NOT NULL,
+  changed_by_user_id BIGINT,
+  changed_by_username VARCHAR(100),
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_password_change_user (user_id),
+  INDEX idx_password_change_changed_by (changed_by_user_id)
+) ENGINE=InnoDB;
+
+-- Profile permission change history
+CREATE TABLE IF NOT EXISTS profile_permission_changes (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  profile_id BIGINT NOT NULL,
+  profile_name VARCHAR(100) NOT NULL,
+  old_permissions JSON,
+  new_permissions JSON,
+  changed_by_user_id BIGINT,
+  changed_by_username VARCHAR(100),
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_profile_change_profile (profile_id),
+  INDEX idx_profile_change_changed_by (changed_by_user_id)
 ) ENGINE=InnoDB;
 
 SET FOREIGN_KEY_CHECKS=1;

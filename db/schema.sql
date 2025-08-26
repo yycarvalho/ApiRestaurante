@@ -120,7 +120,60 @@ SET FOREIGN_KEY_CHECKS=1;
 -- Seed data minimal
 INSERT INTO profiles (name, description, permissions, default_username)
 VALUES
-  ('Administrador', 'Acesso completo ao sistema', JSON_OBJECT(), 'admin')
+  ('Administrador', 'Acesso completo ao sistema', JSON_OBJECT(
+    'verDashboard', true,
+    'verPedidos', true,
+    'verClientes', true,
+    'verCardapio', true,
+    'criarEditarProduto', true,
+    'excluirProduto', true,
+    'desativarProduto', true,
+    'verChat', true,
+    'enviarChat', true,
+    'imprimirPedido', true,
+    'acessarEndereco', true,
+    'visualizarValorPedido', true,
+    'acompanharEntregas', true,
+    'gerarRelatorios', true,
+    'gerenciarPerfis', true,
+    'alterarStatusPedido', true,
+    'selecionarStatusEspecifico', true,
+    'criarUsuarios', true,
+    'editarUsuarios', true,
+    'excluirUsuarios', true
+  ), 'admin'),
+  ('Atendente', 'Gerenciamento de pedidos e atendimento', JSON_OBJECT(
+    'verDashboard', true,
+    'verPedidos', true,
+    'verClientes', true,
+    'alterarStatusPedido', true,
+    'verChat', true,
+    'imprimirPedido', true,
+    'visualizarValorPedido', true,
+    'acessarEndereco', true,
+    'verCardapio', true,
+    'criarEditarProduto', false,
+    'excluirProduto', false,
+    'desativarProduto', false,
+    'gerarRelatorios', false,
+    'gerenciarPerfis', false
+  ), 'atendente'),
+  ('Entregador', 'Visualização e atualização de status de entrega', JSON_OBJECT(
+    'verDashboard', false,
+    'verPedidos', true,
+    'verClientes', false,
+    'alterarStatusPedido', true,
+    'verChat', false,
+    'imprimirPedido', false,
+    'visualizarValorPedido', false,
+    'acessarEndereco', true,
+    'verCardapio', false,
+    'criarEditarProduto', false,
+    'excluirProduto', false,
+    'desativarProduto', false,
+    'gerarRelatorios', false,
+    'gerenciarPerfis', false
+  ), 'entregador')
 ON DUPLICATE KEY UPDATE name = name;
 
 INSERT INTO users (username, password_hash, full_name, phone, profile_id)

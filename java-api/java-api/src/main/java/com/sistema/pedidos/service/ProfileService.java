@@ -26,6 +26,7 @@ public class ProfileService {
         Map<String, Boolean> adminPermissions = new HashMap<>();
         adminPermissions.put("verDashboard", true);
         adminPermissions.put("verPedidos", true);
+        adminPermissions.put("verClientes", true);
         adminPermissions.put("verCardapio", true);
         adminPermissions.put("criarEditarProduto", true);
         adminPermissions.put("excluirProduto", true);
@@ -55,6 +56,7 @@ public class ProfileService {
         Map<String, Boolean> atendentePermissions = new HashMap<>();
         atendentePermissions.put("verDashboard", true);
         atendentePermissions.put("verPedidos", true);
+        atendentePermissions.put("verClientes", true);
         atendentePermissions.put("alterarStatusPedido", true);
         atendentePermissions.put("verChat", true);
         atendentePermissions.put("imprimirPedido", true);
@@ -76,6 +78,7 @@ public class ProfileService {
         Map<String, Boolean> entregadorPermissions = new HashMap<>();
         entregadorPermissions.put("verDashboard", false);
         entregadorPermissions.put("verPedidos", true);
+        entregadorPermissions.put("verClientes", false); // Entregadores não precisam ver clientes
         entregadorPermissions.put("alterarStatusPedido", true);
         entregadorPermissions.put("verChat", false);
         entregadorPermissions.put("imprimirPedido", false);
@@ -219,6 +222,7 @@ public class ProfileService {
         
         // Pedidos
         permissions.put("verPedidos", "Ver Pedidos");
+        permissions.put("verClientes", "Ver Clientes");
         permissions.put("alterarStatusPedido", "Alterar Status dos Pedidos");
         permissions.put("verChat", "Ver Chat dos Pedidos");
         permissions.put("imprimirPedido", "Imprimir Pedidos");

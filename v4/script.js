@@ -569,7 +569,7 @@ class SistemaPedidos {
                     hasPermission = this.permissions.verCardapio;
                     break;
                 case 'clientes':
-                    hasPermission = this.permissions.verPedidos; // Usar permissão de pedidos para clientes
+                    hasPermission = this.permissions.verClientes;
                     break;
                 case 'relatorios':
                     hasPermission = this.permissions.gerarRelatorios;

@@ -53,6 +53,11 @@ const API_CONFIG = {
             UPDATE_STATUS: '/orders',
             DELETE: '/orders'
         },
+        CUSTOMERS: {
+            LIST: '/clientes',
+            CREATE: '/clientes',
+            GET: '/clientes'
+        },
         ACCOUNT: {
             CHANGE_PASSWORD: '/users' // usar /users/{id}/password via PATCH
         },
@@ -563,6 +568,9 @@ class SistemaPedidos {
                 case 'cardapio':
                     hasPermission = this.permissions.verCardapio;
                     break;
+                case 'clientes':
+                    hasPermission = this.permissions.verClientes;
+                    break;
                 case 'relatorios':
                     hasPermission = this.permissions.gerarRelatorios;
                     break;
@@ -616,6 +624,7 @@ class SistemaPedidos {
             case 'dashboard': this.renderDashboard(container); break;
             case 'pedidos': this.renderPedidos(container); break;
             case 'cardapio': this.renderCardapio(container); break;
+            case 'clientes': this.renderClientes(container); break;
             case 'relatorios': this.renderRelatorios(container); break;
             case 'perfis': this.renderPerfis(container); break;
         }
@@ -835,6 +844,325 @@ class SistemaPedidos {
                 </div>
             </div>
         `;
+    }
+
+    renderClientes(container) {
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Gerenciar Clientes</h2>
+                <button class="btn btn-primary" id="newCustomerBtn">
+                    <i class="fas fa-plus"></i> Novo Cliente
+                </button>
+            </div>
+            <div class="customers-grid" id="customersGrid">
+                <div class="loading-placeholder">Carregando clientes...</div>
+            </div>
+        `;
+        
+        document.getElementById('newCustomerBtn').onclick = () => this.showNewCustomerModal();
+        this.loadCustomers();
+    }
+
+    async loadCustomers() {
+        try {
+            this.showLoading();
+            const customers = await this.apiService.get(API_CONFIG.ENDPOINTS.CUSTOMERS.LIST);
+            this.customers = customers;
+            this.renderCustomersGrid();
+        } catch (error) {
+            console.error('Erro ao carregar clientes:', error);
+            this.showToast('Erro ao carregar clientes.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    renderCustomersGrid() {
+        const grid = document.getElementById('customersGrid');
+        if (!this.customers || this.customers.length === 0) {
+            grid.innerHTML = '<div class="empty-state">Nenhum cliente encontrado</div>';
+            return;
+        }
+
+        grid.innerHTML = this.customers.map(customer => this.createCustomerCard(customer)).join('');
+        
+        // Adicionar event listeners para os cards
+        document.querySelectorAll('.customer-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const customerId = card.dataset.customerId;
+                this.showCustomerDetails(customerId);
+            });
+        });
+    }
+
+    createCustomerCard(customer) {
+        const orderCount = this.orders.filter(o => o.customer === customer.name || o.phone === customer.phone).length;
+        const lastOrder = this.orders
+            .filter(o => o.customer === customer.name || o.phone === customer.phone)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        
+        const lastOrderText = lastOrder ? this.getTimeAgo(new Date(lastOrder.createdAt)) : 'Nunca';
+        
+        return `
+            <div class="customer-card" data-customer-id="${customer.id}">
+                <div class="customer-header">
+                    <div class="customer-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="customer-info">
+                        <h3 class="customer-name">${customer.name}</h3>
+                        <span class="customer-phone">${customer.phone}</span>
+                    </div>
+                </div>
+                <div class="customer-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Pedidos</span>
+                        <span class="stat-value">${orderCount}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Último Pedido</span>
+                        <span class="stat-value">${lastOrderText}</span>
+                    </div>
+                </div>
+                <div class="customer-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); sistema.showCustomerDetails(${customer.id})">
+                        <i class="fas fa-eye"></i> Ver Detalhes
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    async showCustomerDetails(customerId) {
+        try {
+            this.showLoading();
+            const customer = await this.apiService.get(`${API_CONFIG.ENDPOINTS.CUSTOMERS.GET}/${customerId}`);
+            
+            // Buscar pedidos do cliente
+            const customerOrders = this.orders.filter(o => 
+                o.customer === customer.name || o.phone === customer.phone
+            );
+            
+            // Buscar mensagens do cliente (se implementado na API)
+            const customerMessages = this.getCustomerMessages(customer);
+            
+            this.showCustomerDetailsModal(customer, customerOrders, customerMessages);
+        } catch (error) {
+            console.error('Erro ao carregar detalhes do cliente:', error);
+            this.showToast('Erro ao carregar detalhes do cliente.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    getCustomerMessages(customer) {
+        // Buscar mensagens de todos os pedidos do cliente
+        const messages = [];
+        this.orders
+            .filter(o => o.customer === customer.name || o.phone === customer.phone)
+            .forEach(order => {
+                if (order.chat) {
+                    order.chat.forEach(msg => {
+                        messages.push({
+                            ...msg,
+                            orderId: order.id,
+                            orderStatus: order.status,
+                            timestamp: msg.time || new Date()
+                        });
+                    });
+                }
+            });
+        
+        // Ordenar por timestamp
+        return messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    }
+
+    showCustomerDetailsModal(customer, orders, messages) {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2>Detalhes do Cliente</h2>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="customer-details">
+                        <div class="customer-profile">
+                            <div class="customer-avatar large">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="customer-info">
+                                <h3>${customer.name}</h3>
+                                <p>${customer.phone}</p>
+                                <p>Cliente desde: ${new Date(customer.createdAt).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="customer-tabs">
+                        <button class="tab-btn active" data-tab="orders">Pedidos (${orders.length})</button>
+                        <button class="tab-btn" data-tab="conversations">Conversas (${messages.length})</button>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <div class="tab-pane active" data-tab="orders">
+                            ${this.renderCustomerOrders(orders)}
+                        </div>
+                        <div class="tab-pane" data-tab="conversations">
+                            ${this.renderCustomerConversations(messages)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Configurar tabs
+        this.setupCustomerTabs(modal);
+        
+        // Fechar modal ao clicar fora
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    }
+
+    renderCustomerOrders(orders) {
+        if (orders.length === 0) {
+            return '<div class="empty-state">Nenhum pedido encontrado</div>';
+        }
+        
+        return `
+            <div class="customer-orders">
+                ${orders.map(order => `
+                    <div class="customer-order-item">
+                        <div class="order-header">
+                            <span class="order-id">#${order.id}</span>
+                            <span class="order-status ${order.status}">${this.getStatusName(order.status)}</span>
+                            <span class="order-date">${new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div class="order-items">
+                            ${order.items.map(item => `
+                                <span class="order-item">${item.quantity}x ${item.productName}</span>
+                            `).join('')}
+                        </div>
+                        <div class="order-footer">
+                            <span class="order-total">R$ ${order.total.toFixed(2)}</span>
+                            <span class="order-type ${order.type}">${order.type === 'delivery' ? 'Entrega' : 'Retirada'}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderCustomerConversations(messages) {
+        if (messages.length === 0) {
+            return '<div class="empty-state">Nenhuma conversa encontrada</div>';
+        }
+        
+        return `
+            <div class="customer-conversations">
+                ${messages.map(msg => `
+                    <div class="conversation-message ${msg.sender}">
+                        <div class="message-header">
+                            <span class="message-sender">${this.getSenderName(msg.sender)}</span>
+                            <span class="message-time">${new Date(msg.timestamp).toLocaleString('pt-BR')}</span>
+                            ${msg.orderId ? `<span class="message-order">Pedido #${msg.orderId}</span>` : ''}
+                        </div>
+                        <div class="message-content">${msg.message}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    setupCustomerTabs(modal) {
+        const tabBtns = modal.querySelectorAll('.tab-btn');
+        const tabPanes = modal.querySelectorAll('.tab-pane');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabName = btn.dataset.tab;
+                
+                // Atualizar botões ativos
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Atualizar painéis ativos
+                tabPanes.forEach(pane => {
+                    pane.classList.toggle('active', pane.dataset.tab === tabName);
+                });
+            });
+        });
+    }
+
+    showNewCustomerModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Novo Cliente</h2>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="newCustomerForm">
+                        <div class="form-group">
+                            <label for="customerName">Nome</label>
+                            <input type="text" id="customerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="customerPhone">Telefone</label>
+                            <input type="tel" id="customerPhone" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="sistema.saveNewCustomer()">Salvar</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Fechar modal ao clicar fora
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    }
+
+    async saveNewCustomer() {
+        const name = document.getElementById('customerName').value.trim();
+        const phone = document.getElementById('customerPhone').value.trim();
+        
+        if (!name || !phone) {
+            this.showToast('Nome e telefone são obrigatórios.', 'error');
+            return;
+        }
+        
+        try {
+            this.showLoading();
+            const newCustomer = await this.apiService.post(API_CONFIG.ENDPOINTS.CUSTOMERS.CREATE, { name, phone });
+            
+            this.showToast('Cliente criado com sucesso!', 'success');
+            this.customers.push(newCustomer);
+            this.renderCustomersGrid();
+            
+            // Fechar modal
+            document.querySelector('.modal').remove();
+        } catch (error) {
+            console.error('Erro ao criar cliente:', error);
+            this.showToast('Erro ao criar cliente.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     renderRelatorios(container) {
@@ -2057,6 +2385,29 @@ class SistemaPedidos {
 
     hideLoading() {
         document.getElementById('loading').classList.add('hidden');
+    }
+
+    // Funções auxiliares para clientes
+    getStatusName(status) {
+        const statusMap = {
+            'atendimento': 'Em Atendimento',
+            'pagamento': 'Aguardando Pagamento',
+            'feito': 'Pedido Feito',
+            'preparo': 'Em Preparo',
+            'pronto': 'Pronto',
+            'coletado': 'Coletado',
+            'finalizado': 'Finalizado'
+        };
+        return statusMap[status] || status;
+    }
+
+    getSenderName(sender) {
+        const senderMap = {
+            'customer': 'Cliente',
+            'system': 'Sistema',
+            'user': 'Atendente'
+        };
+        return senderMap[sender] || sender;
     }
 }
 

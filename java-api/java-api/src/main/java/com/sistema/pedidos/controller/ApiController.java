@@ -10,6 +10,8 @@ import com.sistema.pedidos.model.Profile;
 import com.sistema.pedidos.model.User;
 import com.sistema.pedidos.service.*;
 import com.sistema.pedidos.util.JwtUtil;
+import com.sistema.pedidos.model.Customer;
+import com.sistema.pedidos.util.ActionLogger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -38,6 +40,7 @@ public class ApiController {
     private final ProductService productService;
     private final OrderService orderService;
     private final MetricsService metricsService;
+    private final CustomerService customerService;
     
     public ApiController() {
         this.objectMapper = new ObjectMapper();
@@ -54,6 +57,7 @@ public class ApiController {
         this.orderService = new OrderService(productService);
         this.metricsService = new MetricsService(orderService, productService);
         this.authService = new AuthService(userService, profileService);
+        this.customerService = new CustomerService();
     }
 
     /**
@@ -73,6 +77,7 @@ public class ApiController {
         server.createContext("/api/orders", new OrdersHandler());
         server.createContext("/api/metrics/dashboard", new DashboardMetricsHandler());
         server.createContext("/api/metrics/reports", new ReportsHandler());
+        server.createContext("/api/clientes", new CustomersHandler());
         
         // Handler para CORS
         server.createContext("/", new CorsHandler());
@@ -82,6 +87,7 @@ public class ApiController {
         
         System.out.println("Servidor iniciado na porta " + port);
         System.out.println("API disponível em: http://localhost:" + port + "/api");
+        ActionLogger.log("INFO", "server_start", "Servidor iniciado", null, null, null, null);
     }
 
     /**
@@ -633,6 +639,71 @@ public class ApiController {
                 
             } catch (Exception e) {
                 sendJsonResponse(exchange, 500, ApiResponse.error("Erro interno do servidor"));
+            }
+        }
+    }
+
+    /**
+     * Handler para clientes (lista e detalhes)
+     */
+    private class CustomersHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(200, 0);
+                exchange.close();
+                return;
+            }
+
+            if (!isAuthenticated(exchange)) {
+                sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
+                return;
+            }
+
+            String method = exchange.getRequestMethod();
+            String path = exchange.getRequestURI().getPath();
+
+            try {
+                switch (method) {
+                    case "GET":
+                        // /api/clientes or /api/clientes/{id}
+                        String[] parts = path.split("/");
+                        if (parts.length >= 4) {
+                            Long id = Long.parseLong(parts[3]);
+                            Customer cu = customerService.findById(id);
+                            if (cu == null) {
+                                sendJsonResponse(exchange, 404, ApiResponse.error("Cliente não encontrado"));
+                            } else {
+                                sendJsonResponse(exchange, 200, cu);
+                            }
+                        } else {
+                            List<Customer> list = customerService.findAll();
+                            sendJsonResponse(exchange, 200, list);
+                        }
+                        break;
+                    case "POST":
+                        String body = readRequestBody(exchange);
+                        Map data = objectMapper.readValue(body, Map.class);
+                        String name = (String) data.get("name");
+                        String phone = (String) data.get("phone");
+                        if (name == null || phone == null) {
+                            sendJsonResponse(exchange, 400, ApiResponse.error("Nome e telefone são obrigatórios"));
+                            return;
+                        }
+                        Customer saved = customerService.upsertByPhone(name, phone);
+                        ActionLogger.log("INFO", "cliente_upsert", "Cliente salvo", null, null, null, null);
+                        sendJsonResponse(exchange, 201, saved);
+                        break;
+                    default:
+                        sendJsonResponse(exchange, 405, ApiResponse.error("Método não permitido"));
+                }
+            } catch (NumberFormatException e) {
+                sendJsonResponse(exchange, 400, ApiResponse.error("ID inválido"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                sendJsonResponse(exchange, 500, ApiResponse.error("Erro interno do servidor: " + e.getMessage()));
             }
         }
     }

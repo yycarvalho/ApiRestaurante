@@ -921,7 +921,7 @@ class SistemaPedidos {
                 <h3>Usuários do Sistema</h3>
                 <div class="users-grid" id="usersGrid">
                     ${this.users.map(user => {
-                        const userProfile = this.profiles.find(p => p.id === user.profileId);
+                        const userProfile = this.profiles.find(p => p.id == user.profileId);
                         return `
                         <div class="user-card" data-user-id="${user.id}">
                             <div class="user-header">
@@ -931,7 +931,7 @@ class SistemaPedidos {
                             <div class="user-info">
                                 <p><strong>Email:</strong> ${user.email}</p>
                                 <p><strong>Username:</strong> ${user.username}</p>
-                                <p><strong>Criado em:</strong> ${new Date(user.createdAt).toLocaleDateString()}</p>
+                                <p><strong>Criado em:</strong> ${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}</p>
                             </div>
                             <div class="user-actions">
                                 ${this.permissions.editarUsuarios ? `
@@ -952,24 +952,24 @@ class SistemaPedidos {
                 
                 <h3>Tipos de Perfil</h3>
                 <div class="profiles-grid" id="profilesGrid">
-                    ${Object.entries(this.profiles).map(([key, profile]) => `
-                        <div class="profile-card" data-profile-id="${key}">
-                            <div class="profile-header">
-                                <h4>${profile.name}</h4>
-                                <span class="permissions-count">${Object.values(profile.permissions).filter(p => p).length} permissões</span>
-                            </div>
-                            <div class="profile-actions">
-                                <button class="btn btn-secondary btn-sm" onclick="sistema.editProfile('${key}')">
-                                    <i class="fas fa-edit"></i> Editar Permissões
-                                </button>
-                                ${key !== 'administrador' ? `
-                                <button class="btn btn-danger btn-sm" onclick="sistema.deleteProfile('${key}')">
-                                    <i class="fas fa-trash"></i> Excluir
-                                </button>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `).join('')}
+                    ${this.profiles.map(profile => `
+                        <div class="profile-card" data-profile-id="${profile.id}">
+                             <div class="profile-header">
+                                 <h4>${profile.name}</h4>
+                                 <span class="permissions-count">${Object.values(profile.permissions).filter(p => p).length} permissões</span>
+                             </div>
+                             <div class="profile-actions">
+                                 <button class="btn btn-secondary btn-sm" onclick="sistema.editProfile(${profile.id})">
+                                     <i class="fas fa-edit"></i> Editar Permissões
+                                 </button>
+                                 ${profile.name !== 'Administrador' ? `
+                                 <button class="btn btn-danger btn-sm" onclick="sistema.deleteProfile(${profile.id})">
+                                     <i class="fas fa-trash"></i> Excluir
+                                 </button>
+                                 ` : ''}
+                             </div>
+                         </div>
+                         `).join('')}
                 </div>
             </div>
         `;
@@ -1178,7 +1178,7 @@ class SistemaPedidos {
     showNewOrderModal() {
         const productOptions = this.products
             .filter(p => p.active)
-            .map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - R$ ${p.price.toFixed(2)}</option>`)
+            .map(p => `<option value="${p.id}" data-price="${Number(p.price ?? 0)}">${p.name} - R$ ${Number(p.price ?? 0).toFixed(2)}</option>`)
             .join('');
 
         const modalHTML = `

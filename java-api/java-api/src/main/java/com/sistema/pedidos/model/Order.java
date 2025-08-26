@@ -134,7 +134,13 @@ public class Order {
     public void calculateTotal() {
         if (items != null) {
             this.total = items.stream()
-                    .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                    .map(item -> {
+                        BigDecimal itemPrice = item.getPrice();
+                        if (itemPrice == null) {
+                            return BigDecimal.ZERO;
+                        }
+                        return itemPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+                    })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
         } else {
             this.total = BigDecimal.ZERO;

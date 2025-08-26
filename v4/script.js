@@ -53,6 +53,9 @@ const API_CONFIG = {
             UPDATE_STATUS: '/orders',
             DELETE: '/orders'
         },
+        ACCOUNT: {
+            CHANGE_PASSWORD: '/users' // usar /users/{id}/password via PATCH
+        },
         METRICS: {
             DASHBOARD: '/metrics/dashboard',
             REPORTS: '/metrics/reports'
@@ -258,26 +261,31 @@ class SistemaPedidos {
             }
         }, 2 * 60 * 1000); // 2 minutos
 
-        // Polling em background para dados (pedidos e métricas)
+        // Polling em background para dados (pedidos, métricas, produtos, perfis, usuários)
         setInterval(async () => {
             if (!this.apiService.token || !this.currentUser) return;
             try {
-                const [ordersData, metricsData] = await Promise.all([
+                const [ordersData, metricsData, productsData, profilesData, usersData] = await Promise.all([
                     this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD)
+                    this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD),
+                    this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST),
+                    this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST),
+                    this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST)
                 ]);
 
                 const ordersChanged = JSON.stringify(ordersData) !== JSON.stringify(this.orders);
                 const metricsChanged = JSON.stringify(metricsData) !== JSON.stringify(this.metrics);
+                const productsChanged = JSON.stringify(productsData) !== JSON.stringify(this.products);
+                const profilesChanged = JSON.stringify(profilesData) !== JSON.stringify(this.profiles);
+                const usersChanged = JSON.stringify(usersData) !== JSON.stringify(this.users);
 
-                if (ordersChanged) {
-                    this.orders = ordersData;
-                }
-                if (metricsChanged) {
-                    this.metrics = metricsData;
-                }
+                if (ordersChanged) this.orders = ordersData;
+                if (metricsChanged) this.metrics = metricsData;
+                if (productsChanged) this.products = productsData;
+                if (profilesChanged) this.profiles = profilesData;
+                if (usersChanged) this.users = usersData;
 
-                if (ordersChanged || metricsChanged) {
+                if (ordersChanged || metricsChanged || productsChanged || profilesChanged || usersChanged) {
                     // Re-renderizar seção ativa
                     if (this.activeSection) {
                         this.renderSectionContent(this.activeSection);
@@ -1703,18 +1711,13 @@ class SistemaPedidos {
         });
     }
 
-    changePassword(modal) {
+    async changePassword(modal) {
         const currentPassword = modal.querySelector('#currentPassword').value;
         const newPassword = modal.querySelector('#newPassword').value;
         const confirmNewPassword = modal.querySelector('#confirmNewPassword').value;
 
         if (!currentPassword || !newPassword || !confirmNewPassword) {
             this.showToast('Todos os campos são obrigatórios.', 'error');
-            return;
-        }
-
-        if (this.users[this.currentUser].password !== currentPassword) {
-            this.showToast('Senha atual incorreta.', 'error');
             return;
         }
 
@@ -1728,9 +1731,26 @@ class SistemaPedidos {
             return;
         }
 
-        this.users[this.currentUser].password = newPassword;
-        this.closeModal();
-        this.showToast('Senha alterada com sucesso!', 'success');
+        try {
+            this.showLoading();
+            const me = this.users.find(u => u.username === this.currentUser) || {};
+            if (!me.id) {
+                this.showToast('Usuário atual não encontrado.', 'error');
+                return;
+            }
+            await this.apiService.patch(`${API_CONFIG.ENDPOINTS.ACCOUNT.CHANGE_PASSWORD}/${me.id}/password`, {
+                currentPassword,
+                newPassword
+            });
+
+            this.closeModal();
+            this.showToast('Senha alterada com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao alterar senha:', error);
+            this.showToast(error.message || 'Erro ao alterar senha.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     // =================================================================

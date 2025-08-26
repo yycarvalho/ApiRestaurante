@@ -12,6 +12,7 @@ import com.sistema.pedidos.service.*;
 import com.sistema.pedidos.util.JwtUtil;
 import com.sistema.pedidos.model.Customer;
 import com.sistema.pedidos.util.ActionLogger;
+import com.sistema.pedidos.util.Db;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -87,7 +88,6 @@ public class ApiController {
         
         System.out.println("Servidor iniciado na porta " + port);
         System.out.println("API disponível em: http://localhost:" + port + "/api");
-        ActionLogger.log("INFO", "server_start", "Servidor iniciado", null, null, null, null);
     }
 
     /**
@@ -762,6 +762,7 @@ public class ApiController {
      */
     public static void main(String[] args) {
         try {
+        	
             int port = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
             
             ApiController controller = new ApiController();

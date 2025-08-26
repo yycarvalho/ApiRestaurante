@@ -10,12 +10,12 @@ import java.sql.SQLException;
  * Utilitário simples para acessar DataSource/Connections
  */
 public class Db {
-    public static DataSource ds() {
-        return DatabaseConfig.getDataSource();
-    }
+//    public static DataSource ds() {
+//        return DatabaseConfig.getConnection();
+//    }
 
     public static Connection getConnection() throws SQLException {
-        return ds().getConnection();
+        return DatabaseConfig.getConnection();
     }
 
     public static void closeQuietly(AutoCloseable c) {

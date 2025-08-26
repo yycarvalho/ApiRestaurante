@@ -52,49 +52,6 @@ public class ProfileService {
         admin.setDefaultUsername("admin");
         profiles.put(admin.getId(), admin);
 
-        // Perfil Atendente
-        Map<String, Boolean> atendentePermissions = new HashMap<>();
-        atendentePermissions.put("verDashboard", true);
-        atendentePermissions.put("verPedidos", true);
-        atendentePermissions.put("verClientes", true);
-        atendentePermissions.put("alterarStatusPedido", true);
-        atendentePermissions.put("verChat", true);
-        atendentePermissions.put("imprimirPedido", true);
-        atendentePermissions.put("visualizarValorPedido", true);
-        atendentePermissions.put("acessarEndereco", true);
-        atendentePermissions.put("verCardapio", true);
-        atendentePermissions.put("criarEditarProduto", false);
-        atendentePermissions.put("excluirProduto", false);
-        atendentePermissions.put("desativarProduto", false);
-        atendentePermissions.put("gerarRelatorios", false);
-        atendentePermissions.put("gerenciarPerfis", false);
-
-        Profile atendente = new Profile("Atendente", "Gerenciamento de pedidos e atendimento", atendentePermissions);
-        atendente.setId(idGenerator.getAndIncrement());
-        atendente.setDefaultUsername("atendente");
-        profiles.put(atendente.getId(), atendente);
-
-        // Perfil Entregador
-        Map<String, Boolean> entregadorPermissions = new HashMap<>();
-        entregadorPermissions.put("verDashboard", false);
-        entregadorPermissions.put("verPedidos", true);
-        entregadorPermissions.put("verClientes", false); // Entregadores não precisam ver clientes
-        entregadorPermissions.put("alterarStatusPedido", true);
-        entregadorPermissions.put("verChat", false);
-        entregadorPermissions.put("imprimirPedido", false);
-        entregadorPermissions.put("visualizarValorPedido", false);
-        entregadorPermissions.put("acessarEndereco", true);
-        entregadorPermissions.put("verCardapio", false);
-        entregadorPermissions.put("criarEditarProduto", false);
-        entregadorPermissions.put("excluirProduto", false);
-        entregadorPermissions.put("desativarProduto", false);
-        entregadorPermissions.put("gerarRelatorios", false);
-        entregadorPermissions.put("gerenciarPerfis", false);
-
-        Profile entregador = new Profile("Entregador", "Visualização e atualização de status de entrega", entregadorPermissions);
-        entregador.setId(idGenerator.getAndIncrement());
-        entregador.setDefaultUsername("entregador");
-        profiles.put(entregador.getId(), entregador);
     }
 
     /**

@@ -44,6 +44,8 @@ public class ApiController {
         // Configurar ObjectMapper para suportar LocalDateTime
         this.objectMapper.findAndRegisterModules();
         this.objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // Não falhar em propriedades desconhecidas vindas do frontend
+        this.objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         
         // Inicializar serviços
         this.profileService = new ProfileService();
@@ -226,6 +228,7 @@ public class ApiController {
             
             String method = exchange.getRequestMethod();
             String path = exchange.getRequestURI().getPath();
+            String path = exchange.getRequestURI().getPath();
             
             try {
                 switch (method) {
@@ -255,6 +258,40 @@ public class ApiController {
                         }
                         break;
                         
+                    case "PATCH":
+                        // Suporta alteração de senha: /api/users/{id}/password
+                        String[] patchPathParts = path.split("/");
+                        if (patchPathParts.length >= 5 && "password".equals(patchPathParts[4])) {
+                            Long userIdForPassword = Long.parseLong(patchPathParts[3]);
+                            String body = readRequestBody(exchange);
+                            Map<String, String> data = objectMapper.readValue(body, Map.class);
+                            String currentPassword = data.get("currentPassword");
+                            String newPassword = data.get("newPassword");
+
+                            User user = userService.findById(userIdForPassword);
+                            if (user == null) {
+                                sendJsonResponse(exchange, 404, ApiResponse.error("Usuário não encontrado"));
+                                return;
+                            }
+
+                            if (newPassword == null || newPassword.trim().isEmpty()) {
+                                sendJsonResponse(exchange, 400, ApiResponse.error("Nova senha é obrigatória"));
+                                return;
+                            }
+
+                            // Verificar senha atual se fornecida
+                            if (currentPassword != null && !currentPassword.equals(user.getPassword())) {
+                                sendJsonResponse(exchange, 400, ApiResponse.error("Senha atual incorreta"));
+                                return;
+                            }
+
+                            userService.resetPassword(userIdForPassword, newPassword);
+                            sendJsonResponse(exchange, 200, ApiResponse.success("Senha alterada com sucesso", userService.findById(userIdForPassword)));
+                        } else {
+                            sendJsonResponse(exchange, 400, ApiResponse.error("Endpoint inválido"));
+                        }
+                        break;
+                    
                     case "DELETE":
                         String[] deletePathParts = path.split("/");
                         if (deletePathParts.length >= 4) {
@@ -317,6 +354,42 @@ public class ApiController {
                         Profile newProfile = objectMapper.readValue(requestBody, Profile.class);
                         Profile createdProfile = profileService.create(newProfile);
                         sendJsonResponse(exchange, 201, createdProfile);
+                        break;
+                    
+                    case "PUT":
+                        if (!isAuthenticated(exchange)) {
+                            sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
+                            return;
+                        }
+                        String[] pathParts = path.split("/");
+                        if (pathParts.length >= 4) {
+                            Long profileId = Long.parseLong(pathParts[3]);
+                            String updateBody = readRequestBody(exchange);
+                            Profile updateProfile = objectMapper.readValue(updateBody, Profile.class);
+                            Profile updatedProfile = profileService.update(profileId, updateProfile);
+                            sendJsonResponse(exchange, 200, updatedProfile);
+                        } else {
+                            sendJsonResponse(exchange, 400, ApiResponse.error("ID do perfil é obrigatório"));
+                        }
+                        break;
+                    
+                    case "DELETE":
+                        if (!isAuthenticated(exchange)) {
+                            sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
+                            return;
+                        }
+                        String[] deletePathParts = path.split("/");
+                        if (deletePathParts.length >= 4) {
+                            Long profileId = Long.parseLong(deletePathParts[3]);
+                            boolean deleted = profileService.delete(profileId);
+                            if (deleted) {
+                                sendJsonResponse(exchange, 200, ApiResponse.success("Perfil excluído com sucesso"));
+                            } else {
+                                sendJsonResponse(exchange, 404, ApiResponse.error("Perfil não encontrado"));
+                            }
+                        } else {
+                            sendJsonResponse(exchange, 400, ApiResponse.error("ID do perfil é obrigatório"));
+                        }
                         break;
                         
                     default:

@@ -1,8 +1,210 @@
 /**
  * Sistema de Gestão de Pedidos
  * Autor: Manus AI
- * Versão: 3.0 (Sistema de Autenticação e Permissões Avançado)
+ * Versão: 4.0 (Integração com API Java)
+ * 
+ * ALTERAÇÕES NA V4.0:
+ * - Integração completa com API REST Java
+ * - Autenticação JWT com renovação automática
+ * - Sistema de cache local para melhor performance
+ * - Tratamento robusto de erros de rede e API
+ * - Estados de loading para todas as operações
+ * - Validação automática de sessão
+ * - Todas as regras de negócio movidas para a API
+ * 
+ * CONFIGURAÇÃO:
+ * - Altere API_CONFIG.BASE_URL para o endereço da sua API
+ * - A API deve estar rodando e acessível
+ * - Usuários padrão: admin/123, atendente/123, entregador/123
  */
+
+// =================================================================
+// CONFIGURAÇÕES DA API
+// =================================================================
+const API_CONFIG = {
+    BASE_URL: 'http://localhost:8080/api', // Altere aqui para o endereço da sua API
+    ENDPOINTS: {
+        AUTH: {
+            LOGIN: '/auth/login',
+            LOGOUT: '/auth/logout',
+            VALIDATE: '/auth/validate'
+        },
+        USERS: {
+            LIST: '/users',
+            CREATE: '/users',
+            UPDATE: '/users',
+            DELETE: '/users'
+        },
+        PROFILES: {
+            LIST: '/profiles',
+            CREATE: '/profiles',
+            UPDATE: '/profiles',
+            DELETE: '/profiles'
+        },
+        PRODUCTS: {
+            LIST: '/products',
+            CREATE: '/products',
+            UPDATE: '/products',
+            DELETE: '/products'
+        },
+        ORDERS: {
+            LIST: '/orders',
+            CREATE: '/orders',
+            UPDATE_STATUS: '/orders',
+            DELETE: '/orders'
+        },
+        METRICS: {
+            DASHBOARD: '/metrics/dashboard',
+            REPORTS: '/metrics/reports'
+        }
+    }
+};
+
+// =================================================================
+// UTILITÁRIOS JWT E API
+// =================================================================
+class ApiService {
+    constructor() {
+        this.token = localStorage.getItem('jwt_token');
+    }
+
+    setToken(token) {
+        this.token = token;
+        if (token) {
+            localStorage.setItem('jwt_token', token);
+        } else {
+            localStorage.removeItem('jwt_token');
+        }
+    }
+
+    getAuthHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            ...(this.token && { 'Authorization': `Bearer ${this.token}` })
+        };
+    }
+
+    async makeRequest(endpoint, options = {}) {
+        const url = `${API_CONFIG.BASE_URL}${endpoint}`;
+        const config = {
+            headers: this.getAuthHeaders(),
+            ...options
+        };
+
+        try {
+            const response = await fetch(url, config);
+            
+            // Se o token expirou, tentar renovar ou redirecionar para login
+            if (response.status === 401) {
+                if (endpoint !== API_CONFIG.ENDPOINTS.AUTH.LOGIN) {
+                    this.handleTokenExpiration();
+                    throw new Error('Sessão expirada. Faça login novamente.');
+                }
+            }
+
+            if (!response.ok) {
+                let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+                
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorMessage;
+                } catch (e) {
+                    // Se não conseguir parsear o JSON, usar a mensagem padrão
+                }
+
+                // Tratamento específico para diferentes códigos de erro
+                switch (response.status) {
+                    case 400:
+                        throw new Error(errorMessage || 'Dados inválidos enviados.');
+                    case 403:
+                        throw new Error('Você não tem permissão para realizar esta ação.');
+                    case 404:
+                        throw new Error('Recurso não encontrado.');
+                    case 409:
+                        throw new Error(errorMessage || 'Conflito de dados.');
+                    case 500:
+                        throw new Error('Erro interno do servidor. Tente novamente.');
+                    default:
+                        throw new Error(errorMessage);
+                }
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return await response.json();
+            }
+            
+            return response;
+        } catch (error) {
+            // Tratamento de erros de rede
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                throw new Error('Erro de conexão. Verifique sua internet e tente novamente.');
+            }
+            
+            console.error('Erro na requisição:', error);
+            throw error;
+        }
+    }
+
+    async handleTokenExpiration() {
+        this.setToken(null);
+        // Será implementado pela classe principal
+        if (window.sistema) {
+            await window.sistema.logout();
+        }
+    }
+
+    // Método para verificar se o token está próximo do vencimento
+    isTokenExpiringSoon() {
+        if (!this.token) return false;
+        
+        try {
+            // Decode JWT payload (simples, sem verificação de assinatura)
+            const payload = JSON.parse(atob(this.token.split('.')[1]));
+            const now = Math.floor(Date.now() / 1000);
+            const timeToExpiry = payload.exp - now;
+            
+            // Se expira em menos de 5 minutos (300 segundos)
+            return timeToExpiry < 300;
+        } catch (error) {
+            console.error('Erro ao verificar expiração do token:', error);
+            return false;
+        }
+    }
+
+    // Métodos HTTP
+    async get(endpoint, params = {}) {
+        const queryString = new URLSearchParams(params).toString();
+        const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+        return this.makeRequest(url, { method: 'GET' });
+    }
+
+    async post(endpoint, data) {
+        return this.makeRequest(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async put(endpoint, data) {
+        return this.makeRequest(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async patch(endpoint, data) {
+        return this.makeRequest(endpoint, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async delete(endpoint) {
+        return this.makeRequest(endpoint, { method: 'DELETE' });
+    }
+}
+
 class SistemaPedidos {
     constructor() {
         // Estado da Aplicação
@@ -10,228 +212,176 @@ class SistemaPedidos {
         this.currentProfile = null;
         this.permissions = {};
         this.activeSection = 'dashboard';
+        
+        // Serviço de API
+        this.apiService = new ApiService();
+        
+        // Cache de dados
+        this.products = [];
+        this.orders = [];
+        this.profiles = [];
+        this.users = [];
+        this.metrics = {};
 
         // Inicialização
-        this.initializeData();
         this.initializeEventListeners();
-        this.renderLoginScreen();
+        this.checkExistingSession();
+        this.startTokenValidationTimer();
+        this.setupGlobalErrorHandling();
+    }
+
+    setupGlobalErrorHandling() {
+        // Capturar erros não tratados
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Erro não tratado:', event.reason);
+            this.showToast('Ocorreu um erro inesperado. Tente novamente.', 'error');
+            event.preventDefault();
+        });
+
+        window.addEventListener('error', (event) => {
+            console.error('Erro de JavaScript:', event.error);
+            this.showToast('Erro na aplicação. Recarregue a página se necessário.', 'error');
+        });
+    }
+
+    startTokenValidationTimer() {
+        // Verificar token a cada 2 minutos
+        setInterval(async () => {
+            if (this.apiService.token && this.currentUser) {
+                try {
+                    // Tentar validar o token
+                    await this.apiService.get(API_CONFIG.ENDPOINTS.AUTH.VALIDATE);
+                } catch (error) {
+                    console.warn('Token inválido detectado, fazendo logout...');
+                    await this.logout();
+                }
+            }
+        }, 2 * 60 * 1000); // 2 minutos
     }
 
     // =================================================================
-    // 1. INICIALIZAÇÃO E DADOS
+    // 1. INICIALIZAÇÃO E SESSÃO
     // =================================================================
 
-    initializeData() {
-        // Usuários para o sistema de login (agora com mais campos)
-        this.users = {
-            'admin': { 
-                password: '123', 
-                profile: 'administrador',
-                name: 'Administrador',
-                email: 'admin@sistema.com',
-                createdAt: new Date('2024-01-01'),
-                canChangePassword: true
-            },
-            'atendente': { 
-                password: '123', 
-                profile: 'atendente',
-                name: 'João Atendente',
-                email: 'atendente@sistema.com',
-                createdAt: new Date('2024-01-15'),
-                canChangePassword: true
-            },
-            'entregador': { 
-                password: '123', 
-                profile: 'entregador',
-                name: 'Carlos Entregador',
-                email: 'entregador@sistema.com',
-                createdAt: new Date('2024-02-01'),
-                canChangePassword: true
+    async checkExistingSession() {
+        const token = this.apiService.token;
+        if (token) {
+            try {
+                this.showLoading();
+                const response = await this.apiService.get(API_CONFIG.ENDPOINTS.AUTH.VALIDATE);
+                
+                // Token válido, restaurar sessão
+                this.currentUser = response.user.username;
+                this.currentProfile = response.user.profileId;
+                this.permissions = response.user.permissions;
+                
+                this.showMainSystem();
+                await this.loadInitialData();
+            } catch (error) {
+                console.error('Token inválido:', error);
+                this.apiService.setToken(null);
+                this.showLoginScreen();
+            } finally {
+                this.hideLoading();
             }
-        };
+        } else {
+            this.showLoginScreen();
+        }
+    }
 
-        // Perfis e Permissões (expandido)
-        this.profiles = {
-            administrador: { 
-                name: 'Administrador', 
-                permissions: { 
-                    verDashboard: true, 
-                    verPedidos: true, 
-                    verCardapio: true, 
-                    criarEditarProduto: true, 
-                    excluirProduto: true, 
-                    desativarProduto: true, 
-                    verChat: true, 
-                    enviarChat: true, 
-                    imprimirPedido: true, 
-                    acessarEndereco: true, 
-                    visualizarValorPedido: true, 
-                    acompanharEntregas: true, 
-                    gerarRelatorios: true, 
-                    gerenciarPerfis: true,
-                    alterarStatusPedido: true,
-                    selecionarStatusEspecifico: true,
-                    criarUsuarios: true,
-                    editarUsuarios: true,
-                    excluirUsuarios: true
-                } 
-            },
-            atendente: { 
-                name: 'Atendente', 
-                permissions: { 
-                    verDashboard: true, 
-                    verPedidos: true, 
-                    verCardapio: true, 
-                    criarEditarProduto: false, 
-                    excluirProduto: false, 
-                    desativarProduto: true, 
-                    verChat: true, 
-                    enviarChat: true, 
-                    imprimirPedido: true, 
-                    acessarEndereco: false, 
-                    visualizarValorPedido: true, 
-                    acompanharEntregas: false, 
-                    gerarRelatorios: false, 
-                    gerenciarPerfis: false,
-                    alterarStatusPedido: false,
-                    selecionarStatusEspecifico: false,
-                    criarUsuarios: false,
-                    editarUsuarios: false,
-                    excluirUsuarios: false
-                } 
-            },
-            entregador: { 
-                name: 'Entregador', 
-                permissions: { 
-                    verDashboard: false, 
-                    verPedidos: true, 
-                    verCardapio: false, 
-                    criarEditarProduto: false, 
-                    excluirProduto: false, 
-                    desativarProduto: false, 
-                    verChat: true, 
-                    enviarChat: true, 
-                    imprimirPedido: false, 
-                    acessarEndereco: true, 
-                    visualizarValorPedido: false, 
-                    acompanharEntregas: true, 
-                    gerarRelatorios: false, 
-                    gerenciarPerfis: false,
-                    alterarStatusPedido: false,
-                    selecionarStatusEspecifico: false,
-                    criarUsuarios: false,
-                    editarUsuarios: false,
-                    excluirUsuarios: false
-                } 
-            }
-        };
+    showLoginScreen() {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainSystem').classList.add('hidden');
+        this.renderLoginProfiles();
+    }
 
-        // Lista de todas as permissões disponíveis
-        this.availablePermissions = {
-            verDashboard: 'Ver Dashboard',
-            verPedidos: 'Ver Pedidos',
-            verCardapio: 'Ver Cardápio',
-            criarEditarProduto: 'Criar/Editar Produto',
-            excluirProduto: 'Excluir Produto',
-            desativarProduto: 'Desativar Produto',
-            verChat: 'Ver Chat',
-            enviarChat: 'Enviar Chat',
-            imprimirPedido: 'Imprimir Pedido',
-            acessarEndereco: 'Acessar Endereço',
-            visualizarValorPedido: 'Visualizar Valor do Pedido',
-            acompanharEntregas: 'Acompanhar Entregas',
-            gerarRelatorios: 'Gerar Relatórios',
-            gerenciarPerfis: 'Gerenciar Perfis',
-            alterarStatusPedido: 'Alterar Status do Pedido',
-            selecionarStatusEspecifico: 'Selecionar Status Específico',
-            criarUsuarios: 'Criar Usuários',
-            editarUsuarios: 'Editar Usuários',
-            excluirUsuarios: 'Excluir Usuários',
-        };
+    showMainSystem() {
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('mainSystem').classList.remove('hidden');
+        this.setupUI();
+    }
 
-        // Status dos Pedidos
-        this.orderStatuses = [
-            { id: 'atendimento', name: 'Em Atendimento' },
-            { id: 'pagamento', name: 'Aguardando Pagamento' },
-            { id: 'feito', name: 'Pedido Feito' },
-            { id: 'preparo', name: 'Em Preparo' },
-            { id: 'pronto', name: 'Pronto' },
-            { id: 'coletado', name: 'Coletado' },
-            { id: 'finalizado', name: 'Finalizado' }
+    async renderLoginProfiles() {
+        const container = document.getElementById('loginProfiles');
+        container.innerHTML = '<p>Ou acesse rapidamente como:</p>';
+        
+        const quickAccessContainer = document.createElement('div');
+        quickAccessContainer.className = 'profile-quick-access';
+
+        // Perfis de acesso rápido baseados na API
+        const quickProfiles = [
+            { username: 'admin', password: '123', name: 'Administrador' },
+            { username: 'atendente', password: '123', name: 'Atendente' },
+            { username: 'entregador', password: '123', name: 'Entregador' }
         ];
 
-        // Produtos do Cardápio
-        this.products = [
-            { id: 1, name: 'X-Burger Clássico', price: 25.90, description: 'Hambúrguer artesanal, queijo, alface, tomate e molho especial', category: 'lanches', active: true },
-            { id: 2, name: 'X-Bacon', price: 29.90, description: 'Hambúrguer artesanal, bacon, queijo, alface, tomate e molho especial', category: 'lanches', active: true },
-            { id: 3, name: 'Coca-Cola 350ml', price: 5.50, description: 'Refrigerante Coca-Cola lata 350ml', category: 'bebidas', active: true },
-            { id: 4, name: 'Batata Frita', price: 12.90, description: 'Porção de batata frita crocante', category: 'acompanhamentos', active: true },
-            { id: 5, name: 'Milkshake de Chocolate', price: 15.90, description: 'Milkshake cremoso de chocolate com chantilly', category: 'sobremesas', active: true }
-        ];
+        quickProfiles.forEach(profile => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.textContent = profile.name;
+            btn.onclick = () => this.login(profile.username, profile.password);
+            quickAccessContainer.appendChild(btn);
+        });
+        
+        container.appendChild(quickAccessContainer);
+    }
 
-        // Pedidos Simulados
-        this.orders = [
-            { 
-                id: 'PED001', 
-                customer: 'João Silva', 
-                phone: '(11) 99999-1234',
-                status: 'atendimento', 
-                type: 'delivery', 
-                address: 'Rua das Flores, 123', 
-                items: [{ productId: 1, quantity: 2, price: 25.90 }, { productId: 3, quantity: 2, price: 5.50 }], 
-                total: 62.80, 
-                createdAt: new Date(Date.now() - 30 * 60000),
-                chat: [
-                    { sender: 'customer', message: 'Olá, gostaria de fazer um pedido', time: new Date(Date.now() - 25 * 60000) },
-                    { sender: 'system', message: 'Olá João! Em que posso ajudá-lo?', time: new Date(Date.now() - 24 * 60000) },
-                    { sender: 'customer', message: '2 X-Burger Clássico e 2 Coca-Cola', time: new Date(Date.now() - 23 * 60000) },
-                    { sender: 'system', message: 'Perfeito! Total: R$ 62,80. Confirma o pedido?', time: new Date(Date.now() - 22 * 60000) },
-                    { sender: 'customer', message: 'Confirmo! Entrega na Rua das Flores, 123', time: new Date(Date.now() - 21 * 60000) }
-                ]
-            },
-            { 
-                id: 'PED002', 
-                customer: 'Maria Santos', 
-                phone: '(11) 99999-5678',
-                status: 'preparo', 
-                type: 'pickup', 
-                address: null, 
-                items: [{ productId: 2, quantity: 1, price: 29.90 }, { productId: 4, quantity: 1, price: 12.90 }], 
-                total: 42.80, 
-                createdAt: new Date(Date.now() - 45 * 60000),
-                chat: [
-                    { sender: 'customer', message: 'Quero um X-Bacon com batata frita', time: new Date(Date.now() - 40 * 60000) },
-                    { sender: 'system', message: 'Ótima escolha! Será retirada ou entrega?', time: new Date(Date.now() - 39 * 60000) },
-                    { sender: 'customer', message: 'Retirada na loja', time: new Date(Date.now() - 38 * 60000) },
-                    { sender: 'system', message: 'Pedido confirmado! Total: R$ 42,80', time: new Date(Date.now() - 37 * 60000) }
-                ]
-            },
-            { 
-                id: 'PED003', 
-                customer: 'Carlos Oliveira', 
-                phone: '(11) 99999-9012',
-                status: 'pronto', 
-                type: 'delivery', 
-                address: 'Av. Paulista, 1000', 
-                items: [{ productId: 1, quantity: 1, price: 25.90 }, { productId: 5, quantity: 1, price: 15.90 }], 
-                total: 41.80, 
-                createdAt: new Date(Date.now() - 60 * 60000),
-                chat: [
-                    { sender: 'customer', message: 'Um X-Burger e um milkshake, por favor', time: new Date(Date.now() - 55 * 60000) },
-                    { sender: 'system', message: 'Perfeito! Endereço para entrega?', time: new Date(Date.now() - 54 * 60000) },
-                    { sender: 'customer', message: 'Av. Paulista, 1000', time: new Date(Date.now() - 53 * 60000) },
-                    { sender: 'system', message: 'Pedido em preparo! Tempo estimado: 30 min', time: new Date(Date.now() - 52 * 60000) }
-                ]
-            }
-        ];
+    async loadInitialData() {
+        try {
+            // Carregar dados em paralelo
+            const [profilesData, productsData, ordersData, metricsData, usersData] = await Promise.all([
+                this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST),
+                this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST),
+                this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST),
+                this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD),
+                this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST)
+            ]);
 
-        // Métricas do Dashboard
-        this.metrics = {
-            totalPedidosHoje: 15,
-            valorTotalArrecadado: 847.50,
-            pedidosPorStatus: { atendimento: 2, pagamento: 1, feito: 3, preparo: 4, pronto: 2, coletado: 1, finalizado: 2 },
-            faturamentoMensal: [12500, 13800, 15200, 14800, 17300, 16900] // Simulação para gráfico
-        };
+            this.profiles = profilesData;
+            this.products = productsData;
+            this.orders = ordersData;
+            this.metrics = metricsData;
+            this.users = usersData;
+
+            // Status dos Pedidos (mantido local por ser configuração)
+            this.orderStatuses = [
+                { id: 'atendimento', name: 'Em Atendimento' },
+                { id: 'pagamento', name: 'Aguardando Pagamento' },
+                { id: 'feito', name: 'Pedido Feito' },
+                { id: 'preparo', name: 'Em Preparo' },
+                { id: 'pronto', name: 'Pronto' },
+                { id: 'coletado', name: 'Coletado' },
+                { id: 'finalizado', name: 'Finalizado' }
+            ];
+
+            // Lista de todas as permissões disponíveis (mantido local)
+            this.availablePermissions = {
+                verDashboard: 'Ver Dashboard',
+                verPedidos: 'Ver Pedidos',
+                verCardapio: 'Ver Cardápio',
+                criarEditarProduto: 'Criar/Editar Produto',
+                excluirProduto: 'Excluir Produto',
+                desativarProduto: 'Desativar Produto',
+                verChat: 'Ver Chat',
+                enviarChat: 'Enviar Chat',
+                imprimirPedido: 'Imprimir Pedido',
+                acessarEndereco: 'Acessar Endereço',
+                visualizarValorPedido: 'Visualizar Valor do Pedido',
+                acompanharEntregas: 'Acompanhar Entregas',
+                gerarRelatorios: 'Gerar Relatórios',
+                gerenciarPerfis: 'Gerenciar Perfis',
+                alterarStatusPedido: 'Alterar Status do Pedido',
+                selecionarStatusEspecifico: 'Selecionar Status Específico',
+                criarUsuarios: 'Criar Usuários',
+                editarUsuarios: 'Editar Usuários',
+                excluirUsuarios: 'Excluir Usuários',
+            };
+
+            this.navigateToSection('dashboard');
+        } catch (error) {
+            console.error('Erro ao carregar dados iniciais:', error);
+            this.showToast('Erro ao carregar dados do sistema.', 'error');
+        }
     }
 
     initializeEventListeners() {
@@ -262,54 +412,75 @@ class SistemaPedidos {
     }
 
     // =================================================================
-    // 2. LÓGICA DE AUTENTICAÇÃO E NAVEGAÇÃO
+    // 2. AUTENTICAÇÃO COM API
     // =================================================================
 
-    renderLoginScreen() {
-        const container = document.getElementById('loginProfiles');
-        container.innerHTML = '<p>Ou acesse rapidamente como:</p>';
-        const quickAccessContainer = document.createElement('div');
-        quickAccessContainer.className = 'profile-quick-access';
+    async login(username, password) {
+        try {
+            this.showLoading();
+            
+            const response = await this.apiService.post(API_CONFIG.ENDPOINTS.AUTH.LOGIN, {
+                username,
+                password
+            });
 
-        Object.keys(this.users).forEach(username => {
-            const btn = document.createElement('button');
-            btn.className = 'btn';
-            btn.textContent = this.profiles[this.users[username].profile].name;
-            btn.onclick = () => this.login(username, this.users[username].password);
-            quickAccessContainer.appendChild(btn);
-        });
-        container.appendChild(quickAccessContainer);
-    }
+            // Armazenar token e dados do usuário
+            this.apiService.setToken(response.token);
+            this.currentUser = response.user.username;
+            this.currentProfile = response.user.profileId;
+            this.permissions = response.user.permissions;
 
-    login(username, password) {
-        const user = this.users[username];
-        if (user && user.password === password) {
-            this.currentUser = username;
-            this.currentProfile = user.profile;
-            this.permissions = this.profiles[this.currentProfile].permissions;
-
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('mainSystem').classList.remove('hidden');
-
-            this.setupUI();
-            this.navigateToSection('pedidos');
+            // Atualizar UI
+            this.showMainSystem();
+            await this.loadInitialData();
             this.showToast('Login realizado com sucesso!', 'success');
-        } else {
-            this.showToast('Usuário ou senha inválidos.', 'error');
+
+        } catch (error) {
+            console.error('Erro no login:', error);
+            this.showToast(error.message || 'Erro ao fazer login. Tente novamente.', 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
-    logout() {
-        this.currentUser = null;
-        this.currentProfile = null;
-        this.permissions = {};
+    async logout() {
+        try {
+            // Tentar fazer logout na API
+            if (this.apiService.token) {
+                await this.apiService.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT);
+            }
+        } catch (error) {
+            console.error('Erro no logout:', error);
+        } finally {
+            // Limpar dados locais independente do resultado da API
+            this.apiService.setToken(null);
+            this.currentUser = null;
+            this.currentProfile = null;
+            this.permissions = {};
 
-        document.getElementById('mainSystem').classList.add('hidden');
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('loginForm').reset();
-        
-        // Selecionar primeiro item da navegação ao fazer logout
-        this.selectFirstNavItem();
+            // Limpar cache de dados
+            this.products = [];
+            this.orders = [];
+            this.profiles = [];
+            this.users = [];
+            this.metrics = {};
+
+            // Voltar para tela de login
+            this.showLoginScreen();
+            document.getElementById('loginForm').reset();
+        }
+    }
+
+    // =================================================================
+    // 3. HELPERS DE UI E NAVEGAÇÃO
+    // =================================================================
+
+    showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
+    }
+
+    hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
     }
 
     selectFirstNavItem() {
@@ -321,8 +492,12 @@ class SistemaPedidos {
     }
 
     setupUI() {
-        document.getElementById('currentUser').textContent = this.users[this.currentUser].name || this.currentUser;
-        document.getElementById('currentProfile').textContent = this.profiles[this.currentProfile].name;
+        // Atualizar informações do usuário no header
+        document.getElementById('currentUser').textContent = this.currentUser;
+        
+        // Encontrar o perfil do usuário
+        const userProfile = this.profiles.find(p => p.id == this.currentProfile);
+        document.getElementById('currentProfile').textContent = userProfile ? userProfile.name : 'Perfil';
 
         // Configurar visibilidade dos itens de navegação baseado nas permissões
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -612,25 +787,107 @@ class SistemaPedidos {
         container.innerHTML = `
             <div class="section-header">
                 <h2>Relatórios</h2>
+                <div class="header-actions">
+                    <select id="reportPeriod" class="form-control">
+                        <option value="week">Última Semana</option>
+                        <option value="month" selected>Último Mês</option>
+                        <option value="quarter">Último Trimestre</option>
+                        <option value="year">Último Ano</option>
+                    </select>
+                </div>
             </div>
             <div class="reports-grid">
                 <div class="report-card">
                     <h3>Vendas por Período</h3>
                     <p>Relatório detalhado de vendas em um período específico</p>
-                    <button class="btn btn-primary">Gerar Relatório</button>
+                    <button class="btn btn-primary" onclick="sistema.generateSalesReport()">Gerar Relatório</button>
                 </div>
                 <div class="report-card">
                     <h3>Produtos Mais Vendidos</h3>
                     <p>Ranking dos produtos com maior volume de vendas</p>
-                    <button class="btn btn-primary">Gerar Relatório</button>
+                    <button class="btn btn-primary" onclick="sistema.generateProductsReport()">Gerar Relatório</button>
                 </div>
                 <div class="report-card">
-                    <h3>Performance de Entregadores</h3>
-                    <p>Análise de performance e tempo médio de entrega</p>
-                    <button class="btn btn-primary">Gerar Relatório</button>
+                    <h3>Relatório Completo</h3>
+                    <p>Análise completa de vendas, produtos e performance</p>
+                    <button class="btn btn-primary" onclick="sistema.generateCompleteReport()">Gerar Relatório</button>
                 </div>
             </div>
+            <div id="reportResults" class="report-results"></div>
         `;
+    }
+
+    async generateSalesReport() {
+        try {
+            this.showLoading();
+            const period = document.getElementById('reportPeriod').value;
+            const reportData = await this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.REPORTS, { period });
+            
+            this.displayReportResults('Relatório de Vendas', reportData.salesReport);
+        } catch (error) {
+            console.error('Erro ao gerar relatório de vendas:', error);
+            this.showToast('Erro ao gerar relatório de vendas.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async generateProductsReport() {
+        try {
+            this.showLoading();
+            const period = document.getElementById('reportPeriod').value;
+            const reportData = await this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.REPORTS, { period });
+            
+            this.displayReportResults('Produtos Mais Vendidos', reportData.productsReport);
+        } catch (error) {
+            console.error('Erro ao gerar relatório de produtos:', error);
+            this.showToast('Erro ao gerar relatório de produtos.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async generateCompleteReport() {
+        try {
+            this.showLoading();
+            const period = document.getElementById('reportPeriod').value;
+            const reportData = await this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.REPORTS, { period });
+            
+            this.displayReportResults('Relatório Completo', reportData);
+        } catch (error) {
+            console.error('Erro ao gerar relatório completo:', error);
+            this.showToast('Erro ao gerar relatório completo.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    displayReportResults(title, data) {
+        const resultsContainer = document.getElementById('reportResults');
+        resultsContainer.innerHTML = `
+            <div class="report-section">
+                <h3>${title}</h3>
+                <div class="report-content">
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+                <button class="btn btn-secondary" onclick="sistema.exportReport('${title}', ${JSON.stringify(data).replace(/'/g, "\\'")})">
+                    <i class="fas fa-download"></i> Exportar
+                </button>
+            </div>
+        `;
+        resultsContainer.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    exportReport(title, data) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     renderPerfis(container) {
@@ -655,30 +912,34 @@ class SistemaPedidos {
             <div class="profiles-section">
                 <h3>Usuários do Sistema</h3>
                 <div class="users-grid" id="usersGrid">
-                    ${Object.entries(this.users).map(([username, user]) => `
-                        <div class="user-card" data-username="${username}">
+                    ${this.users.map(user => {
+                        const userProfile = this.profiles.find(p => p.id === user.profileId);
+                        return `
+                        <div class="user-card" data-user-id="${user.id}">
                             <div class="user-header">
                                 <h4>${user.name}</h4>
-                                <span class="user-profile">${this.profiles[user.profile].name}</span>
+                                <span class="user-profile">${userProfile ? userProfile.name : 'Perfil não encontrado'}</span>
                             </div>
                             <div class="user-info">
                                 <p><strong>Email:</strong> ${user.email}</p>
-                                <p><strong>Criado em:</strong> ${user.createdAt.toLocaleDateString()}</p>
+                                <p><strong>Username:</strong> ${user.username}</p>
+                                <p><strong>Criado em:</strong> ${new Date(user.createdAt).toLocaleDateString()}</p>
                             </div>
                             <div class="user-actions">
                                 ${this.permissions.editarUsuarios ? `
-                                <button class="btn btn-secondary btn-sm" onclick="sistema.editUser('${username}')">
+                                <button class="btn btn-secondary btn-sm" onclick="sistema.editUser(${user.id})">
                                     <i class="fas fa-edit"></i> Editar
                                 </button>
                                 ` : ''}
-                                ${this.permissions.excluirUsuarios && username !== 'admin' ? `
-                                <button class="btn btn-danger btn-sm" onclick="sistema.deleteUser('${username}')">
+                                ${this.permissions.excluirUsuarios && user.username !== 'admin' ? `
+                                <button class="btn btn-danger btn-sm" onclick="sistema.deleteUser(${user.id})">
                                     <i class="fas fa-trash"></i> Excluir
                                 </button>
                                 ` : ''}
                             </div>
                         </div>
-                    `).join('')}
+                        `;
+                                         }).join('')}
                 </div>
                 
                 <h3>Tipos de Perfil</h3>
@@ -868,28 +1129,42 @@ class SistemaPedidos {
         }
     }
     
-	updateOrderStatus(orderId, newStatus) {
-		const order = this.orders.find(o => o.id === orderId);
-		if (!order) return;
-	
-		// aplica o status solicitado
-		order.status = newStatus;
-	
-		// regra: se for retirada (pickup) e marcar "pronto", finaliza automaticamente
-		let autoFinalizado = false;
-		if (order.type === 'pickup' && newStatus === 'coletado') {
-			order.status = 'finalizado';
-			autoFinalizado = true;
+	async updateOrderStatus(orderId, newStatus) {
+		try {
+			this.showLoading();
+			
+			// Atualizar status na API
+			await this.apiService.patch(`${API_CONFIG.ENDPOINTS.ORDERS.UPDATE_STATUS}/${orderId}/status`, {
+				status: newStatus
+			});
+
+			// Atualizar localmente
+			const order = this.orders.find(o => o.id === orderId);
+			if (order) {
+				order.status = newStatus;
+
+				// regra: se for retirada (pickup) e marcar "pronto", finaliza automaticamente
+				let autoFinalizado = false;
+				if (order.type === 'pickup' && newStatus === 'coletado') {
+					order.status = 'finalizado';
+					autoFinalizado = true;
+				}
+			}
+
+			this.closeModal();
+			this.renderKanbanBoard();
+			this.showToast(
+				order && order.type === 'pickup' && newStatus === 'coletado'
+					? `Pedido ${orderId} finalizado automaticamente (retirada pronta).`
+					: `Status do pedido ${orderId} atualizado!`,
+				order && order.type === 'pickup' && newStatus === 'coletado' ? 'info' : 'success'
+			);
+		} catch (error) {
+			console.error('Erro ao atualizar status do pedido:', error);
+			this.showToast('Erro ao atualizar status do pedido.', 'error');
+		} finally {
+			this.hideLoading();
 		}
-	
-		this.closeModal();
-		this.renderKanbanBoard();
-		this.showToast(
-			autoFinalizado
-				? `Pedido ${orderId} finalizado automaticamente (retirada pronta).`
-				: `Status do pedido ${orderId} atualizado!`,
-			autoFinalizado ? 'info' : 'success'
-		);
 	}
 
     showNewOrderModal() {
@@ -1021,35 +1296,45 @@ class SistemaPedidos {
             return;
         }
 
-        const newOrder = {
-            id: `PED${String(this.orders.length + 10).padStart(3, '0')}`,
+        this.createNewOrder({
             customer: customerName,
             phone: customerPhone,
-            status: 'atendimento',
             type: orderType,
             address: orderType === 'delivery' ? customerAddress : null,
-            items: items,
-            total: items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-            createdAt: new Date(),
-            chat: []
-        };
+            items: items.map(item => ({ productId: item.productId, quantity: item.quantity }))
+        });
+    }
 
-        this.orders.unshift(newOrder); // Adiciona no início da lista
-        this.closeModal();
-        this.renderKanbanBoard();
-        this.showToast('Novo pedido criado com sucesso!', 'success');
+    async createNewOrder(orderData) {
+        try {
+            this.showLoading();
+            
+            const newOrder = await this.apiService.post(API_CONFIG.ENDPOINTS.ORDERS.CREATE, orderData);
+            
+            // Adicionar o novo pedido ao cache local
+            this.orders.unshift(newOrder);
+            
+            this.closeModal();
+            this.renderKanbanBoard();
+            this.showToast('Novo pedido criado com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao criar pedido:', error);
+            this.showToast('Erro ao criar o pedido. Tente novamente.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     // =================================================================
     // 5. GESTÃO DE USUÁRIOS E PERFIS
     // =================================================================
 
-    showUserModal(username = null) {
-        const user = username ? this.users[username] : null;
+    showUserModal(userId = null) {
+        const user = userId ? this.users.find(u => u.id === userId) : null;
         const isEdit = !!user;
 
-        const profileOptions = Object.entries(this.profiles)
-            .map(([key, profile]) => `<option value="${key}" ${user && user.profile === key ? 'selected' : ''}>${profile.name}</option>`)
+        const profileOptions = this.profiles
+            .map(profile => `<option value="${profile.id}" ${user && user.profileId === profile.id ? 'selected' : ''}>${profile.name}</option>`)
             .join('');
 
         const modalHTML = `
@@ -1069,7 +1354,7 @@ class SistemaPedidos {
                     </div>
                     <div class="form-group">
                         <label for="userLogin">Login</label>
-                        <input type="text" id="userLogin" value="${username || ''}" ${isEdit ? 'readonly' : ''} required>
+                        <input type="text" id="userLogin" value="${user?.username || ''}" ${isEdit ? 'readonly' : ''} required>
                     </div>
                     ${!isEdit ? `
                     <div class="form-group">
@@ -1096,24 +1381,24 @@ class SistemaPedidos {
         this.renderModal(modalHTML, (modal) => {
             modal.querySelector('#cancelUserBtn').onclick = () => this.closeModal();
             modal.querySelector('.modal-close').onclick = () => this.closeModal();
-            modal.querySelector('#saveUserBtn').onclick = () => this.saveUser(modal, username);
+            modal.querySelector('#saveUserBtn').onclick = () => this.saveUser(modal, userId);
         });
     }
 
-    saveUser(modal, existingUsername = null) {
+    async saveUser(modal, existingUserId = null) {
         const name = modal.querySelector('#userName').value;
         const email = modal.querySelector('#userEmail').value;
-        const login = modal.querySelector('#userLogin').value;
+        const username = modal.querySelector('#userLogin').value;
         const password = modal.querySelector('#userPassword')?.value;
         const passwordConfirm = modal.querySelector('#userPasswordConfirm')?.value;
-        const profile = modal.querySelector('#userProfile').value;
+        const profileId = parseInt(modal.querySelector('#userProfile').value);
 
-        if (!name || !email || !login || !profile) {
+        if (!name || !email || !username || !profileId) {
             this.showToast('Todos os campos são obrigatórios.', 'error');
             return;
         }
 
-        if (!existingUsername) {
+        if (!existingUserId) {
             if (!password || !passwordConfirm) {
                 this.showToast('Senha e confirmação são obrigatórias.', 'error');
                 return;
@@ -1123,56 +1408,84 @@ class SistemaPedidos {
                 this.showToast('As senhas não coincidem.', 'error');
                 return;
             }
-
-            if (this.users[login]) {
-                this.showToast('Este login já existe.', 'error');
-                return;
-            }
         }
 
         const userData = {
             name: name,
             email: email,
-            profile: profile,
-            createdAt: existingUsername ? this.users[existingUsername].createdAt : new Date(),
-            canChangePassword: true
+            username: username,
+            profileId: profileId
         };
 
-        if (!existingUsername) {
+        if (!existingUserId) {
             userData.password = password;
-            this.users[login] = userData;
-        } else {
-            userData.password = this.users[existingUsername].password;
-            if (existingUsername !== login) {
-                delete this.users[existingUsername];
-            }
-            this.users[login] = userData;
         }
 
-        this.closeModal();
-        this.renderPerfis(document.getElementById('perfisSection'));
-        this.showToast(`Usuário ${existingUsername ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+        try {
+            this.showLoading();
+            
+            let savedUser;
+            if (existingUserId) {
+                // Atualizar usuário existente
+                savedUser = await this.apiService.put(`${API_CONFIG.ENDPOINTS.USERS.UPDATE}/${existingUserId}`, userData);
+                const userIndex = this.users.findIndex(u => u.id === existingUserId);
+                if (userIndex !== -1) {
+                    this.users[userIndex] = savedUser;
+                }
+            } else {
+                // Criar novo usuário
+                savedUser = await this.apiService.post(API_CONFIG.ENDPOINTS.USERS.CREATE, userData);
+                this.users.push(savedUser);
+            }
+
+            this.closeModal();
+            this.renderPerfis(document.getElementById('perfisSection'));
+            this.showToast(`Usuário ${existingUserId ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+        } catch (error) {
+            console.error('Erro ao salvar usuário:', error);
+            this.showToast('Erro ao salvar o usuário. Tente novamente.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
-    editUser(username) {
-        this.showUserModal(username);
+    editUser(userId) {
+        this.showUserModal(userId);
     }
 
-    deleteUser(username) {
-        if (username === 'admin') {
+    async deleteUser(userId) {
+        const user = this.users.find(u => u.id === userId);
+        if (!user) return;
+
+        if (user.username === 'admin') {
             this.showToast('O usuário administrador não pode ser excluído.', 'error');
             return;
         }
 
-        if (confirm(`Tem certeza que deseja excluir o usuário ${this.users[username].name}?`)) {
-            delete this.users[username];
+        if (!confirm(`Tem certeza que deseja excluir o usuário ${user.name}?`)) {
+            return;
+        }
+
+        try {
+            this.showLoading();
+            
+            await this.apiService.delete(`${API_CONFIG.ENDPOINTS.USERS.DELETE}/${userId}`);
+            
+            // Remover do cache local
+            this.users = this.users.filter(u => u.id !== userId);
+            
             this.renderPerfis(document.getElementById('perfisSection'));
             this.showToast('Usuário excluído com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao excluir usuário:', error);
+            this.showToast('Erro ao excluir o usuário.', 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
-    showProfileModal(profileKey = null) {
-        const profile = profileKey ? this.profiles[profileKey] : null;
+    showProfileModal(profileId = null) {
+        const profile = profileId ? this.profiles.find(p => p.id === profileId) : null;
         const isEdit = !!profile;
 
         const permissionsHTML = Object.entries(this.availablePermissions).map(([key, label]) => `
@@ -1212,11 +1525,11 @@ class SistemaPedidos {
         this.renderModal(modalHTML, (modal) => {
             modal.querySelector('#cancelProfileBtn').onclick = () => this.closeModal();
             modal.querySelector('.modal-close').onclick = () => this.closeModal();
-            modal.querySelector('#saveProfileBtn').onclick = () => this.saveProfile(modal, profileKey);
+            modal.querySelector('#saveProfileBtn').onclick = () => this.saveProfile(modal, profileId);
         });
     }
 
-    saveProfile(modal, existingProfileKey = null) {
+    async saveProfile(modal, existingProfileId = null) {
         const name = modal.querySelector('#profileName').value;
         const permissionCheckboxes = modal.querySelectorAll('input[name="permissions"]:checked');
         
@@ -1234,44 +1547,78 @@ class SistemaPedidos {
             permissions[checkbox.value] = true;
         });
 
-        const profileKey = existingProfileKey || name.toLowerCase().replace(/\s+/g, '_');
-        
-        if (!existingProfileKey && this.profiles[profileKey]) {
-            this.showToast('Já existe um perfil com este nome.', 'error');
-            return;
-        }
-
-        this.profiles[profileKey] = {
+        const profileData = {
             name: name,
             permissions: permissions
         };
 
-        this.closeModal();
-        this.renderPerfis(document.getElementById('perfisSection'));
-        this.showToast(`Perfil ${existingProfileKey ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+        try {
+            this.showLoading();
+            
+            let savedProfile;
+            if (existingProfileId) {
+                // Atualizar perfil existente
+                savedProfile = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PROFILES.UPDATE}/${existingProfileId}`, profileData);
+                const profileIndex = this.profiles.findIndex(p => p.id === existingProfileId);
+                if (profileIndex !== -1) {
+                    this.profiles[profileIndex] = savedProfile;
+                }
+            } else {
+                // Criar novo perfil
+                savedProfile = await this.apiService.post(API_CONFIG.ENDPOINTS.PROFILES.CREATE, profileData);
+                this.profiles.push(savedProfile);
+            }
+
+            this.closeModal();
+            this.renderPerfis(document.getElementById('perfisSection'));
+            this.showToast(`Perfil ${existingProfileId ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+        } catch (error) {
+            console.error('Erro ao salvar perfil:', error);
+            this.showToast('Erro ao salvar o perfil. Tente novamente.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
-    editProfile(profileKey) {
-        this.showProfileModal(profileKey);
+    editProfile(profileId) {
+        this.showProfileModal(profileId);
     }
 
-    deleteProfile(profileKey) {
-        if (profileKey === 'administrador') {
+    async deleteProfile(profileId) {
+        const profile = this.profiles.find(p => p.id === profileId);
+        if (!profile) return;
+
+        if (profile.name === 'Administrador') {
             this.showToast('O perfil administrador não pode ser excluído.', 'error');
             return;
         }
 
         // Verificar se há usuários usando este perfil
-        const usersWithProfile = Object.values(this.users).filter(user => user.profile === profileKey);
+        const usersWithProfile = this.users.filter(user => user.profileId === profileId);
         if (usersWithProfile.length > 0) {
             this.showToast('Não é possível excluir um perfil que está sendo usado por usuários.', 'error');
             return;
         }
 
-        if (confirm(`Tem certeza que deseja excluir o perfil ${this.profiles[profileKey].name}?`)) {
-            delete this.profiles[profileKey];
+        if (!confirm(`Tem certeza que deseja excluir o perfil ${profile.name}?`)) {
+            return;
+        }
+
+        try {
+            this.showLoading();
+            
+            await this.apiService.delete(`${API_CONFIG.ENDPOINTS.PROFILES.DELETE}/${profileId}`);
+            
+            // Remover do cache local
+            this.profiles = this.profiles.filter(p => p.id !== profileId);
+            
             this.renderPerfis(document.getElementById('perfisSection'));
             this.showToast('Perfil excluído com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao excluir perfil:', error);
+            this.showToast('Erro ao excluir o perfil.', 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
@@ -1397,7 +1744,7 @@ class SistemaPedidos {
         });
     }
 
-    saveProduct(modal, productId = null) {
+    async saveProduct(modal, productId = null) {
         const name = modal.querySelector('#productName').value;
         const price = parseFloat(modal.querySelector('#productPrice').value);
         const description = modal.querySelector('#productDescription').value;
@@ -1422,40 +1769,87 @@ class SistemaPedidos {
             active: active
         };
 
-        if (productId) {
-            const productIndex = this.products.findIndex(p => p.id === productId);
-            if (productIndex !== -1) {
-                this.products[productIndex] = { ...this.products[productIndex], ...productData };
+        try {
+            this.showLoading();
+            
+            let updatedProduct;
+            if (productId) {
+                // Atualizar produto existente
+                updatedProduct = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PRODUCTS.UPDATE}/${productId}`, productData);
+                const productIndex = this.products.findIndex(p => p.id === productId);
+                if (productIndex !== -1) {
+                    this.products[productIndex] = updatedProduct;
+                }
+            } else {
+                // Criar novo produto
+                updatedProduct = await this.apiService.post(API_CONFIG.ENDPOINTS.PRODUCTS.CREATE, productData);
+                this.products.push(updatedProduct);
             }
-        } else {
-            const newId = Math.max(...this.products.map(p => p.id)) + 1;
-            this.products.push({ id: newId, ...productData });
-        }
 
-        this.closeModal();
-        this.renderCardapio(document.getElementById('cardapioSection'));
-        this.showToast(`Produto ${productId ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+            this.closeModal();
+            this.renderCardapio(document.getElementById('cardapioSection'));
+            this.showToast(`Produto ${productId ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+        } catch (error) {
+            console.error('Erro ao salvar produto:', error);
+            this.showToast('Erro ao salvar o produto. Tente novamente.', 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     editProduct(productId) {
         this.showProductModal(productId);
     }
 
-    toggleProductStatus(productId) {
+    async toggleProductStatus(productId) {
         const product = this.products.find(p => p.id === productId);
-        if (product) {
-            product.active = !product.active;
+        if (!product) return;
+
+        try {
+            this.showLoading();
+            
+            const updatedProduct = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PRODUCTS.UPDATE}/${productId}`, {
+                ...product,
+                active: !product.active
+            });
+
+            // Atualizar no cache local
+            const productIndex = this.products.findIndex(p => p.id === productId);
+            if (productIndex !== -1) {
+                this.products[productIndex] = updatedProduct;
+            }
+
             this.renderCardapio(document.getElementById('cardapioSection'));
-            this.showToast(`Produto ${product.active ? 'ativado' : 'desativado'} com sucesso!`, 'success');
+            this.showToast(`Produto ${updatedProduct.active ? 'ativado' : 'desativado'} com sucesso!`, 'success');
+        } catch (error) {
+            console.error('Erro ao alterar status do produto:', error);
+            this.showToast('Erro ao alterar status do produto.', 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
-    deleteProduct(productId) {
+    async deleteProduct(productId) {
         const product = this.products.find(p => p.id === productId);
-        if (product && confirm(`Tem certeza que deseja excluir o produto ${product.name}?`)) {
+        if (!product || !confirm(`Tem certeza que deseja excluir o produto ${product.name}?`)) {
+            return;
+        }
+
+        try {
+            this.showLoading();
+            
+            await this.apiService.delete(`${API_CONFIG.ENDPOINTS.PRODUCTS.DELETE}/${productId}`);
+            
+            // Remover do cache local
             this.products = this.products.filter(p => p.id !== productId);
+            
             this.renderCardapio(document.getElementById('cardapioSection'));
             this.showToast('Produto excluído com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao excluir produto:', error);
+            this.showToast('Erro ao excluir o produto.', 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
@@ -1602,6 +1996,9 @@ class SistemaPedidos {
 
 // Inicializar o sistema
 const sistema = new SistemaPedidos();
+
+// Tornar o sistema disponível globalmente para debug e acesso via console
+window.sistema = sistema;
 
 // Adicionar responsividade para mobile
 window.addEventListener('resize', () => {

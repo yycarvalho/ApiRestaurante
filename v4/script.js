@@ -271,12 +271,13 @@ class SistemaPedidos {
                 const response = await this.apiService.get(API_CONFIG.ENDPOINTS.AUTH.VALIDATE);
                 
                 // Token válido, restaurar sessão
-                this.currentUser = response.user.username;
-                this.currentProfile = response.user.profileId;
-                this.permissions = response.user.permissions;
+                const validatedUser = (response && (response.user || response.data?.user)) || response || {};
+                this.currentUser = validatedUser.username || validatedUser.name || '';
+                this.currentProfile = validatedUser.profileId ?? validatedUser.profile?.id ?? null;
+                this.permissions = validatedUser.permissions || validatedUser.roles?.permissions || {};
                 
-                this.showMainSystem();
                 await this.loadInitialData();
+                this.showMainSystem();
             } catch (error) {
                 console.error('Token inválido:', error);
                 this.apiService.setToken(null);
@@ -425,14 +426,16 @@ class SistemaPedidos {
             });
 
             // Armazenar token e dados do usuário
-            this.apiService.setToken(response.token);
-            this.currentUser = response.user.username;
-            this.currentProfile = response.user.profileId;
-            this.permissions = response.user.permissions;
+            const token = response.token || response.accessToken || response.jwt;
+            this.apiService.setToken(token);
+            const loggedUser = (response && (response.user || response.data?.user)) || response || {};
+            this.currentUser = loggedUser.username || loggedUser.name || '';
+            this.currentProfile = loggedUser.profileId ?? loggedUser.profile?.id ?? null;
+            this.permissions = loggedUser.permissions || loggedUser.roles?.permissions || {};
 
-            // Atualizar UI
-            this.showMainSystem();
+            // Atualizar UI após dados carregados
             await this.loadInitialData();
+            this.showMainSystem();
             this.showToast('Login realizado com sucesso!', 'success');
 
         } catch (error) {
@@ -584,11 +587,11 @@ class SistemaPedidos {
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h3>Pedidos Hoje</h3>
-                    <div class="value">${this.metrics.totalPedidosHoje}</div>
+                    <div class="value">${this.metrics?.totalPedidosHoje ?? 0}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Faturamento</h3>
-                    <div class="value">R$ ${this.metrics.valorTotalArrecadado.toFixed(2)}</div>
+                    <div class="value">R$ ${Number(this.metrics?.valorTotalArrecadado ?? 0).toFixed(2)}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Pedidos Ativos</h3>
@@ -612,12 +615,15 @@ class SistemaPedidos {
     renderCharts() {
         // Gráfico de Status de Pedidos
         const statusCtx = document.getElementById('statusChart').getContext('2d');
+        const pedidosPorStatus = this.metrics?.pedidosPorStatus || {};
+        const statusLabels = Object.keys(pedidosPorStatus).map(s => this.orderStatuses?.find(os => os.id === s)?.name || s);
+        const statusData = Object.values(pedidosPorStatus);
         new Chart(statusCtx, {
             type: 'doughnut',
             data: {
-                labels: Object.keys(this.metrics.pedidosPorStatus).map(s => this.orderStatuses.find(os => os.id === s)?.name || s),
+                labels: statusLabels,
                 datasets: [{
-                    data: Object.values(this.metrics.pedidosPorStatus),
+                    data: statusData,
                     backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#10b981', '#6366f1', '#6b7280'],
                 }]
             },
@@ -626,13 +632,14 @@ class SistemaPedidos {
 
         // Gráfico de Faturamento
         const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+        const faturamentoMensal = Array.isArray(this.metrics?.faturamentoMensal) ? this.metrics.faturamentoMensal : new Array(12).fill(0);
         new Chart(revenueCtx, {
             type: 'line',
             data: {
                 labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago','Set','Out','Nov','Dez'],
                 datasets: [{
                     label: 'Faturamento',
-                    data: this.metrics.faturamentoMensal,
+                    data: faturamentoMensal,
                     borderColor: '#6a5af9',
                     backgroundColor: 'rgba(106, 90, 249, 0.1)',
                     fill: true,
@@ -661,7 +668,8 @@ class SistemaPedidos {
         const kanbanBoard = document.getElementById('kanbanBoard');
         kanbanBoard.innerHTML = '';
 
-        this.orderStatuses.forEach(status => {
+        const statuses = Array.isArray(this.orderStatuses) ? this.orderStatuses : [];
+        statuses.forEach(status => {
             const column = document.createElement('div');
             column.className = 'kanban-column';
             column.dataset.statusId = status.id;
@@ -913,7 +921,7 @@ class SistemaPedidos {
                 <h3>Usuários do Sistema</h3>
                 <div class="users-grid" id="usersGrid">
                     ${this.users.map(user => {
-                        const userProfile = this.profiles.find(p => p.id === user.profileId);
+                        const userProfile = this.profiles.find(p => p.id == user.profileId);
                         return `
                         <div class="user-card" data-user-id="${user.id}">
                             <div class="user-header">
@@ -923,7 +931,7 @@ class SistemaPedidos {
                             <div class="user-info">
                                 <p><strong>Email:</strong> ${user.email}</p>
                                 <p><strong>Username:</strong> ${user.username}</p>
-                                <p><strong>Criado em:</strong> ${new Date(user.createdAt).toLocaleDateString()}</p>
+                                <p><strong>Criado em:</strong> ${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}</p>
                             </div>
                             <div class="user-actions">
                                 ${this.permissions.editarUsuarios ? `
@@ -944,24 +952,24 @@ class SistemaPedidos {
                 
                 <h3>Tipos de Perfil</h3>
                 <div class="profiles-grid" id="profilesGrid">
-                    ${Object.entries(this.profiles).map(([key, profile]) => `
-                        <div class="profile-card" data-profile-id="${key}">
-                            <div class="profile-header">
-                                <h4>${profile.name}</h4>
-                                <span class="permissions-count">${Object.values(profile.permissions).filter(p => p).length} permissões</span>
-                            </div>
-                            <div class="profile-actions">
-                                <button class="btn btn-secondary btn-sm" onclick="sistema.editProfile('${key}')">
-                                    <i class="fas fa-edit"></i> Editar Permissões
-                                </button>
-                                ${key !== 'administrador' ? `
-                                <button class="btn btn-danger btn-sm" onclick="sistema.deleteProfile('${key}')">
-                                    <i class="fas fa-trash"></i> Excluir
-                                </button>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `).join('')}
+                    ${this.profiles.map(profile => `
+                        <div class="profile-card" data-profile-id="${profile.id}">
+                             <div class="profile-header">
+                                 <h4>${profile.name}</h4>
+                                 <span class="permissions-count">${Object.values(profile.permissions).filter(p => p).length} permissões</span>
+                             </div>
+                             <div class="profile-actions">
+                                 <button class="btn btn-secondary btn-sm" onclick="sistema.editProfile(${profile.id})">
+                                     <i class="fas fa-edit"></i> Editar Permissões
+                                 </button>
+                                 ${profile.name !== 'Administrador' ? `
+                                 <button class="btn btn-danger btn-sm" onclick="sistema.deleteProfile(${profile.id})">
+                                     <i class="fas fa-trash"></i> Excluir
+                                 </button>
+                                 ` : ''}
+                             </div>
+                         </div>
+                         `).join('')}
                 </div>
             </div>
         `;
@@ -1170,7 +1178,7 @@ class SistemaPedidos {
     showNewOrderModal() {
         const productOptions = this.products
             .filter(p => p.active)
-            .map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - R$ ${p.price.toFixed(2)}</option>`)
+            .map(p => `<option value="${p.id}" data-price="${Number(p.price ?? 0)}">${p.name} - R$ ${Number(p.price ?? 0).toFixed(2)}</option>`)
             .join('');
 
         const modalHTML = `

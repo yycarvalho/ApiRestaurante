@@ -1,0 +1,15 @@
+src/main/java/com/sistema/pedidos/controller/ApiController.java
+src/main/java/com/sistema/pedidos/service/AuthService.java
+src/main/java/com/sistema/pedidos/service/UserService.java
+src/main/java/com/sistema/pedidos/service/ProfileService.java
+src/main/java/com/sistema/pedidos/service/ProductService.java
+src/main/java/com/sistema/pedidos/service/OrderService.java
+src/main/java/com/sistema/pedidos/service/MetricsService.java
+src/main/java/com/sistema/pedidos/model/User.java
+src/main/java/com/sistema/pedidos/model/Profile.java
+src/main/java/com/sistema/pedidos/model/Product.java
+src/main/java/com/sistema/pedidos/model/Order.java
+src/main/java/com/sistema/pedidos/dto/LoginRequest.java
+src/main/java/com/sistema/pedidos/dto/LoginResponse.java
+src/main/java/com/sistema/pedidos/dto/ApiResponse.java
+src/main/java/com/sistema/pedidos/util/JwtUtil.java

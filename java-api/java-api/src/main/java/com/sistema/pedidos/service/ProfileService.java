@@ -26,17 +26,25 @@ public class ProfileService {
         Map<String, Boolean> adminPermissions = new HashMap<>();
         adminPermissions.put("verDashboard", true);
         adminPermissions.put("verPedidos", true);
-        adminPermissions.put("alterarStatusPedido", true);
-        adminPermissions.put("verChat", true);
-        adminPermissions.put("imprimirPedido", true);
-        adminPermissions.put("visualizarValorPedido", true);
-        adminPermissions.put("acessarEndereco", true);
         adminPermissions.put("verCardapio", true);
         adminPermissions.put("criarEditarProduto", true);
         adminPermissions.put("excluirProduto", true);
         adminPermissions.put("desativarProduto", true);
+        adminPermissions.put("verChat", true);
+        adminPermissions.put("enviarChat", true);
+        adminPermissions.put("imprimirPedido", true);
+        adminPermissions.put("acessarEndereco", true);
+        adminPermissions.put("visualizarValorPedido", true);
+        adminPermissions.put("acompanharEntregas", true);
         adminPermissions.put("gerarRelatorios", true);
         adminPermissions.put("gerenciarPerfis", true);
+        adminPermissions.put("alterarStatusPedido", true);
+        adminPermissions.put("selecionarStatusEspecifico", true);
+        adminPermissions.put("criarUsuarios", true);
+        adminPermissions.put("editarUsuarios", true);
+        adminPermissions.put("excluirUsuarios", true);
+        
+        
 
         Profile admin = new Profile("Administrador", "Acesso completo ao sistema", adminPermissions);
         admin.setId(idGenerator.getAndIncrement());

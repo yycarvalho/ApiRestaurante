@@ -228,8 +228,7 @@ public class ApiController {
             
             String method = exchange.getRequestMethod();
             String path = exchange.getRequestURI().getPath();
-            String path = exchange.getRequestURI().getPath();
-            
+
             try {
                 switch (method) {
                     case "GET":
@@ -337,6 +336,7 @@ public class ApiController {
             }
             
             String method = exchange.getRequestMethod();
+            String path = exchange.getRequestURI().getPath();
             
             try {
                 switch (method) {
@@ -708,4 +708,3 @@ public class ApiController {
         }
     }
 }
-

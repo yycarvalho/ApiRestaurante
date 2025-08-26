@@ -1,224 +1,240 @@
-# Sistema de Gestão de Pedidos v4.0
+# Sistema de Gestão de Pedidos - Versão 4.0
 
-Sistema completo de gestão de pedidos com interface web moderna e API Java backend, integrado com banco de dados MySQL.
+Sistema completo para gestão de pedidos de restaurantes e estabelecimentos de alimentação, com controle de clientes, produtos, pedidos e relatórios.
 
-## 🚀 Funcionalidades
+## 🆕 Novas Funcionalidades na V4.0
 
-### ✅ Implementado
-- **Dashboard** com métricas em tempo real
-- **Gestão de Pedidos** com sistema Kanban
-- **Cardápio** com produtos e categorias
-- **Sistema de Usuários** com perfis e permissões
-- **Relatórios** detalhados de vendas
-- **🔵 NOVO: Gestão de Clientes** com histórico completo
-- **🔵 NOVO: Sistema de Logs** persistente no banco
-- **🔵 NOVO: Banco de dados MySQL** com HikariCP
+### 1. Modal de Cliente com Histórico Completo
+- **Histórico de Pedidos**: Visualização completa de todos os pedidos do cliente
+- **Chat Direto**: Conversas diretas com o cliente (não associadas a pedidos específicos)
+- **Histórico de Conversas**: Todas as mensagens trocadas em pedidos anteriores
+- **Interface em Abas**: Organização clara das informações do cliente
 
-### 🔵 Novas Funcionalidades v4.0
-- **Aba Clientes**: Visualização completa de clientes, pedidos e conversas
-- **Histórico de Conversas**: Todas as mensagens de chat organizadas por cliente
-- **Sistema de Logs**: Registro de todas as ações com usuário e timestamp
-- **Persistência MySQL**: Dados seguros e persistentes no banco
+### 2. Sistema de Auditoria Completo
+- **Registro de Todas as Ações**: Login, logout, mudanças de senha, alterações de perfil
+- **Mudanças de Permissões**: Rastreamento de alterações nos perfis de usuário
+- **Mudanças de Senha**: Registro criptografado de alterações de senha
+- **Modificações de Dados**: Criação, atualização e exclusão de registros
+- **Criptografia de Dados Sensíveis**: Proteção de informações confidenciais
 
-## 🛠️ Tecnologias
+### 3. Persistência Total no Banco de Dados
+- **Nenhum Dado em Memória**: Todas as informações são persistidas no banco
+- **Permissões Dinâmicas**: Carregamento em tempo real do banco de dados
+- **Sessões Rastreadas**: Controle de sessões ativas e inativas
+- **Atualizações em Tempo Real**: Todas as modificações são refletidas no banco
 
-- **Frontend**: HTML5, CSS3, JavaScript ES6+
-- **Backend**: Java 11, HTTP Server nativo
-- **Banco**: MySQL 8.0+
-- **Conexão**: HikariCP (Connection Pool)
-- **Autenticação**: JWT
-- **JSON**: Jackson
+### 4. Status "Cancelado" para Pedidos
+- **Novo Status**: Pedidos podem ser marcados como cancelados
+- **Exclusão de Cálculos**: Pedidos cancelados não contabilizam no faturamento
+- **Dashboard Atualizado**: Métricas excluem pedidos cancelados automaticamente
 
-## 📋 Pré-requisitos
+## 🏗️ Arquitetura
 
-- Java 11 ou superior
-- MySQL 8.0 ou superior
-- Navegador web moderno
-- Git
+### Frontend
+- **HTML5 + CSS3**: Interface responsiva e moderna
+- **JavaScript ES6+**: Lógica de negócio e interação com API
+- **Sistema de Modais**: Interface intuitiva para todas as operações
+- **Validação em Tempo Real**: Feedback imediato para o usuário
+
+### Backend
+- **API REST Java**: Endpoints para todas as operações
+- **Autenticação JWT**: Sistema seguro de login e sessão
+- **Banco MySQL**: Persistência robusta de dados
+- **Sistema de Auditoria**: Rastreamento completo de ações
+
+### Banco de Dados
+- **Tabelas Principais**: Users, Profiles, Products, Orders, Customers
+- **Tabelas de Auditoria**: System_audit, User_sessions, System_logs
+- **Chat e Mensagens**: Order_chat_messages, Customer_messages
+- **Índices Otimizados**: Performance para consultas complexas
 
 ## 🚀 Instalação
 
-### 1. Clone o repositório
-```bash
-git clone <seu-repositorio>
-cd sistema-pedidos
-```
+### Pré-requisitos
+- MySQL 8.0+
+- Java 11+
+- Node.js 14+ (para desenvolvimento)
 
-### 2. Configure o MySQL
+### 1. Configurar Banco de Dados
 ```bash
-# Inicie o MySQL
-sudo systemctl start mysql
-
-# Configure as variáveis de ambiente
-cp db/.env.example db/.env
-# Edite db/.env com suas credenciais
-```
-
-### 3. Inicialize o banco de dados
-```bash
-cd db
+cd db/
+chmod +x init-db.sh
 ./init-db.sh
 ```
 
-### 4. Compile e execute a API Java
+### 2. Configurar API Java
 ```bash
-cd ../java-api/java-api
-./compile.sh
+cd java-api/
+./mvnw clean install
+./mvnw spring-boot:run
 ```
 
-### 5. Inicie o frontend
+### 3. Configurar Frontend
 ```bash
-cd ../../v4
-python3 -m http.server 3000
+cd v4/
+# Abrir index.html no navegador
+# Ou usar servidor local:
+python3 -m http.server 8000
 ```
-
-## 🌐 Acessos
-
-- **Frontend**: http://localhost:3000
-- **API**: http://localhost:8080/api
-
-### 👥 Usuários Padrão
-- **admin** / 123 (Administrador - Acesso completo)
-- **atendente** / 123 (Atendente - Gestão de pedidos e clientes)
-- **entregador** / 123 (Entregador - Apenas status de pedidos)
-
-## 🔐 Permissões
-
-### Administrador
-- ✅ Acesso completo ao sistema
-- ✅ Gestão de usuários e perfis
-- ✅ Todas as funcionalidades
-
-### Atendente
-- ✅ Dashboard e pedidos
-- ✅ **🔵 NOVO: Gestão de clientes**
-- ✅ Cardápio (somente visualização)
-- ❌ Relatórios e perfis
-
-### Entregador
-- ✅ Visualização de pedidos
-- ✅ Alteração de status
-- ❌ Dashboard e clientes
-
-## 📱 Interface
-
-### Menu Principal
-- **Dashboard**: Visão geral e métricas
-- **Pedidos**: Gestão com sistema Kanban
-- **Cardápio**: Produtos e categorias
-- **🔵 Clientes**: Nova aba com gestão completa
-- **Relatórios**: Análises e exportação
-- **Perfis**: Gestão de usuários
-
-### 🔵 Nova Aba Clientes
-- **Lista de Clientes**: Cards com informações resumidas
-- **Detalhes do Cliente**: Perfil completo
-- **Histórico de Pedidos**: Todos os pedidos do cliente
-- **Conversas**: Histórico completo de chat
-- **Novo Cliente**: Cadastro rápido
-
-## 🗄️ Estrutura do Banco
-
-### Tabelas Principais
-- `profiles`: Perfis de usuário
-- `users`: Usuários do sistema
-- `products`: Produtos do cardápio
-- `customers`: Clientes
-- `orders`: Pedidos
-- `order_items`: Itens dos pedidos
-- `order_chat_messages`: Mensagens de chat
-- `customer_messages`: Histórico de conversas
-- `system_logs`: Logs do sistema
 
 ## 🔧 Configuração
 
 ### Variáveis de Ambiente
 ```bash
+# API Configuration
+API_BASE_URL=http://localhost:8080/api
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=pedidos
-DB_USER=root
-DB_PASS=sua_senha
+DB_USER=pedidos_user
+DB_PASS=pedidos_pass_2024
 ```
 
-### Configurações de Segurança
-- Conexão MySQL com SSL opcional
-- Pool de conexões HikariCP configurado
-- Timeout e retry automático
-- Logs de todas as operações
+### Usuários Padrão
+- **Administrador**: admin / 123
+- **Atendente**: atendente / 123
+- **Entregador**: entregador / 123
 
-## 📊 Logs e Auditoria
+## 📊 Funcionalidades
 
-### Sistema de Logs
-- **Nível**: INFO, WARNING, ERROR
-- **Ação**: Operação realizada
-- **Usuário**: Quem executou
-- **Timestamp**: Quando aconteceu
-- **Metadata**: Dados adicionais em JSON
+### Dashboard
+- Métricas em tempo real
+- Gráficos de status de pedidos
+- Faturamento mensal
+- Pedidos ativos (excluindo cancelados)
 
-### Exemplos de Logs
-- Login/logout de usuários
-- Criação/edição de pedidos
-- Alterações de status
-- Gestão de clientes
-- Operações no cardápio
+### Gestão de Pedidos
+- Sistema Kanban visual
+- Status configuráveis
+- Chat integrado por pedido
+- Impressão de pedidos
+- Histórico completo
 
-## 🚨 Troubleshooting
+### Gestão de Clientes
+- Cadastro e edição
+- Histórico de pedidos
+- Chat direto
+- Conversas por pedido
+
+### Gestão de Produtos
+- Cardápio dinâmico
+- Categorias organizadas
+- Ativação/desativação
+- Preços e descrições
+
+### Gestão de Usuários
+- Perfis configuráveis
+- Permissões granulares
+- Auditoria de ações
+- Controle de sessões
+
+## 🔒 Segurança
+
+### Autenticação
+- JWT tokens seguros
+- Renovação automática
+- Logout em múltiplas sessões
+- Controle de IP e User-Agent
+
+### Auditoria
+- Log de todas as ações
+- Criptografia de dados sensíveis
+- Rastreamento de mudanças
+- Histórico de sessões
+
+### Permissões
+- Sistema de perfis flexível
+- Controle granular de acesso
+- Validação em tempo real
+- Separação de responsabilidades
+
+## 📈 Relatórios
+
+### Métricas Disponíveis
+- Pedidos por período
+- Faturamento por status
+- Produtos mais vendidos
+- Performance de usuários
+- Análise de clientes
+
+### Exportação
+- Relatórios em PDF
+- Dados em CSV
+- Gráficos interativos
+- Filtros avançados
+
+## 🐛 Troubleshooting
 
 ### Problemas Comuns
+1. **API não responde**: Verificar se o serviço Java está rodando
+2. **Erro de conexão DB**: Verificar credenciais e status do MySQL
+3. **Permissões negadas**: Verificar perfil do usuário logado
+4. **Dados não salvos**: Verificar logs de auditoria
 
-#### API não inicia
-```bash
-# Verificar se MySQL está rodando
-sudo systemctl status mysql
+### Logs
+- **Frontend**: Console do navegador
+- **Backend**: Logs do Spring Boot
+- **Banco**: Tabela system_logs
+- **Auditoria**: Tabela system_audit
 
-# Verificar variáveis de ambiente
-echo $DB_HOST $DB_USER $DB_PASS
+## 🤝 Contribuição
+
+### Padrões de Código
+- **JavaScript**: ES6+, async/await, classes
+- **CSS**: BEM methodology, variáveis CSS
+- **HTML**: Semântico, acessível
+- **Java**: Spring Boot, JPA, REST
+
+### Estrutura de Arquivos
+```
+v4/
+├── index.html          # Página principal
+├── script.js           # Lógica JavaScript
+├── style.css           # Estilos CSS
+└── v4/                 # Arquivos de backup
+
+db/
+├── init-db.sh          # Script de inicialização
+└── schema.sql          # Estrutura do banco
+
+java-api/               # API REST Java
 ```
 
-#### Frontend não carrega
-```bash
-# Verificar se API está rodando
-curl http://localhost:8080/api/profiles
+## 📝 Changelog
 
-# Verificar console do navegador
-F12 > Console
-```
+### V4.0 (Atual)
+- ✅ Modal completo de cliente
+- ✅ Sistema de auditoria
+- ✅ Persistência total no banco
+- ✅ Status cancelado para pedidos
+- ✅ Chat direto com clientes
+- ✅ Criptografia de dados sensíveis
 
-#### Erro de conexão com banco
-```bash
-# Testar conexão MySQL
-mysql -u root -p -h localhost
+### V3.0
+- Sistema de permissões
+- Interface responsiva
+- Validações avançadas
 
-# Verificar permissões do usuário
-SHOW GRANTS FOR 'root'@'localhost';
-```
+### V2.0
+- API REST
+- Autenticação JWT
+- Sistema de usuários
 
-## 🔄 Atualizações
-
-### v4.0 - Clientes e Banco de Dados
-- ✅ Integração MySQL completa
-- ✅ Sistema de clientes
-- ✅ Histórico de conversas
-- ✅ Logs persistentes
-- ✅ Interface moderna
-
-### Próximas Versões
-- 📱 App mobile
-- 🔔 Notificações em tempo real
-- 📊 Analytics avançados
-- 🚚 Rastreamento de entregas
-
-## 📞 Suporte
-
-Para dúvidas ou problemas:
-1. Verifique os logs do sistema
-2. Consulte este README
-3. Abra uma issue no repositório
+### V1.0
+- Funcionalidades básicas
+- Interface simples
+- Banco de dados básico
 
 ## 📄 Licença
 
-Este projeto está sob licença MIT. Veja o arquivo LICENSE para detalhes.
+Este projeto é desenvolvido para uso interno e comercial. Todos os direitos reservados.
+
+## 👥 Suporte
+
+Para suporte técnico ou dúvidas:
+- **Email**: suporte@sistema.com
+- **Documentação**: Este README
+- **Issues**: Repositório do projeto
 
 ---
 

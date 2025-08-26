@@ -115,6 +115,44 @@ CREATE TABLE IF NOT EXISTS system_logs (
   INDEX idx_logs_actor (actor_username)
 ) ENGINE=InnoDB;
 
+-- System audit trail for all changes
+CREATE TABLE IF NOT EXISTS system_audit (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  table_name VARCHAR(100) NOT NULL,
+  record_id VARCHAR(100) NOT NULL,
+  action ENUM('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'PASSWORD_CHANGE', 'PERMISSION_CHANGE', 'PROFILE_CHANGE') NOT NULL,
+  old_values JSON,
+  new_values JSON,
+  actor_user_id BIGINT,
+  actor_username VARCHAR(100),
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_table (table_name),
+  INDEX idx_audit_record (record_id),
+  INDEX idx_audit_action (action),
+  INDEX idx_audit_actor (actor_user_id),
+  INDEX idx_audit_created (created_at)
+) ENGINE=InnoDB;
+
+-- User session tracking
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  username VARCHAR(100) NOT NULL,
+  session_token VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(64),
+  user_agent TEXT,
+  login_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_activity DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  logout_time DATETIME NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_session_token (session_token),
+  INDEX idx_session_user (user_id),
+  INDEX idx_session_active (is_active)
+) ENGINE=InnoDB;
+
 SET FOREIGN_KEY_CHECKS=1;
 
 -- Seed data minimal

@@ -257,6 +257,36 @@ class SistemaPedidos {
                 }
             }
         }, 2 * 60 * 1000); // 2 minutos
+
+        // Polling em background para dados (pedidos e métricas)
+        setInterval(async () => {
+            if (!this.apiService.token || !this.currentUser) return;
+            try {
+                const [ordersData, metricsData] = await Promise.all([
+                    this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST),
+                    this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD)
+                ]);
+
+                const ordersChanged = JSON.stringify(ordersData) !== JSON.stringify(this.orders);
+                const metricsChanged = JSON.stringify(metricsData) !== JSON.stringify(this.metrics);
+
+                if (ordersChanged) {
+                    this.orders = ordersData;
+                }
+                if (metricsChanged) {
+                    this.metrics = metricsData;
+                }
+
+                if (ordersChanged || metricsChanged) {
+                    // Re-renderizar seção ativa
+                    if (this.activeSection) {
+                        this.renderSectionContent(this.activeSection);
+                    }
+                }
+            } catch (e) {
+                // Silenciar erros de polling para não atrapalhar UX
+            }
+        }, 30 * 1000); // a cada 30s
     }
 
     // =================================================================
@@ -409,6 +439,14 @@ class SistemaPedidos {
         // Busca
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.searchOrders(e.target.value);
+        });
+
+        // Logout ao atualizar/fechar a página
+        window.addEventListener('beforeunload', () => {
+            this.apiService.setToken(null);
+        });
+        window.addEventListener('unload', () => {
+            this.apiService.setToken(null);
         });
     }
 

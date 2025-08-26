@@ -68,10 +68,30 @@ const API_CONFIG = {
     }
 };
 
-// =================================================================
-// UTILITÁRIOS JWT E API
-// =================================================================
-class ApiService {
+    // =================================================================
+    // UTILITÁRIOS JWT E API
+    // =================================================================
+    
+    // Função para criptografar dados sensíveis
+    function encryptData(data) {
+        // Implementação simples de criptografia para dados sensíveis
+        // Em produção, use algoritmos mais robustos como AES
+        if (typeof data === 'string') {
+            return btoa(encodeURIComponent(data));
+        }
+        return btoa(encodeURIComponent(JSON.stringify(data)));
+    }
+    
+    // Função para descriptografar dados
+    function decryptData(encryptedData) {
+        try {
+            return decodeURIComponent(atob(encryptedData));
+        } catch (e) {
+            return encryptedData;
+        }
+    }
+    
+    class ApiService {
     constructor() {
         this.token = localStorage.getItem('jwt_token');
     }
@@ -395,7 +415,8 @@ class SistemaPedidos {
                 { id: 'preparo', name: 'Em Preparo' },
                 { id: 'pronto', name: 'Pronto' },
                 { id: 'coletado', name: 'Coletado' },
-                { id: 'finalizado', name: 'Finalizado' }
+                { id: 'finalizado', name: 'Finalizado' },
+                { id: 'cancelado', name: 'Cancelado' }
             ];
 
             // Lista de todas as permissões disponíveis (mantido local)
@@ -464,6 +485,69 @@ class SistemaPedidos {
     }
 
     // =================================================================
+    // AUDITORIA E LOGGING
+    // =================================================================
+    
+    // Função para registrar auditoria no banco de dados
+    async logAudit(action, tableName, recordId, oldValues = null, newValues = null) {
+        try {
+            const auditData = {
+                action: action,
+                table_name: tableName,
+                record_id: recordId,
+                old_values: oldValues ? encryptData(oldValues) : null,
+                new_values: newValues ? encryptData(newValues) : null,
+                actor_user_id: this.currentUserId,
+                actor_username: this.currentUser,
+                ip_address: await this.getClientIP(),
+                user_agent: navigator.userAgent,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Enviar para API de auditoria
+            await this.apiService.post('/audit/log', auditData);
+        } catch (error) {
+            console.error('Erro ao registrar auditoria:', error);
+        }
+    }
+    
+    // Função para obter IP do cliente (simulado)
+    async getClientIP() {
+        try {
+            const response = await fetch('https://api.ipify.org?format=json');
+            const data = await response.json();
+            return data.ip;
+        } catch (error) {
+            return '127.0.0.1';
+        }
+    }
+    
+    // Função para registrar mudanças de perfil
+    async logProfileChange(userId, oldProfile, newProfile) {
+        await this.logAudit('PROFILE_CHANGE', 'users', userId, { profile_id: oldProfile }, { profile_id: newProfile });
+    }
+    
+    // Função para registrar mudanças de senha
+    async logPasswordChange(userId) {
+        await this.logAudit('PASSWORD_CHANGE', 'users', userId, null, { changed_at: new Date().toISOString() });
+    }
+    
+    // Função para registrar login
+    async logLogin(username, success) {
+        await this.logAudit('LOGIN', 'users', username, null, { 
+            success: success, 
+            timestamp: new Date().toISOString() 
+        });
+    }
+    
+    // Função para registrar logout
+    async logLogout(username) {
+        await this.logAudit('LOGOUT', 'users', username, null, { 
+            timestamp: new Date().toISOString() 
+        });
+    }
+    
+    // =================================================================
     // 2. AUTENTICAÇÃO COM API
     // =================================================================
 
@@ -481,7 +565,11 @@ class SistemaPedidos {
             this.apiService.setToken(token);
             const loggedUser = (response && (response.user || response.data?.user)) || response || {};
             this.currentUser = loggedUser.username || loggedUser.name || '';
+            this.currentUserId = loggedUser.id || loggedUser.userId || null;
             this.currentProfile = loggedUser.profileId ?? loggedUser.profile?.id ?? null;
+            
+            // Registrar login bem-sucedido
+            await this.logLogin(username, true);
             this.permissions = loggedUser.permissions || loggedUser.roles?.permissions || {};
 
             // Atualizar UI após dados carregados
@@ -499,6 +587,11 @@ class SistemaPedidos {
 
     async logout() {
         try {
+            // Registrar logout antes de limpar dados
+            if (this.currentUser) {
+                await this.logLogout(this.currentUser);
+            }
+            
             // Tentar fazer logout na API
             if (this.apiService.token) {
                 await this.apiService.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT);
@@ -509,6 +602,7 @@ class SistemaPedidos {
             // Limpar dados locais independente do resultado da API
             this.apiService.setToken(null);
             this.currentUser = null;
+            this.currentUserId = null;
             this.currentProfile = null;
             this.permissions = {};
 
@@ -528,6 +622,13 @@ class SistemaPedidos {
     // =================================================================
     // 3. HELPERS DE UI E NAVEGAÇÃO
     // =================================================================
+    
+    // Função para calcular faturamento total excluindo pedidos cancelados
+    calculateTotalRevenue() {
+        return this.orders
+            .filter(order => order.status !== 'cancelado')
+            .reduce((total, order) => total + (order.total || 0), 0);
+    }
 
     showLoading() {
         document.getElementById('loading').classList.remove('hidden');
@@ -646,11 +747,11 @@ class SistemaPedidos {
                 </div>
                 <div class="metric-card">
                     <h3>Faturamento</h3>
-                    <div class="value">R$ ${Number(this.metrics?.valorTotalArrecadado ?? 0).toFixed(2)}</div>
+                    <div class="value">R$ ${this.calculateTotalRevenue().toFixed(2)}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Pedidos Ativos</h3>
-                    <div class="value">${this.orders.filter(o => o.status !== 'finalizado').length}</div>
+                    <div class="value">${this.orders.filter(o => o.status !== 'finalizado' && o.status !== 'cancelado').length}</div>
                 </div>
             </div>
             <div class="charts-grid">
@@ -1005,6 +1106,7 @@ class SistemaPedidos {
                     <div class="customer-tabs">
                         <button class="tab-btn active" data-tab="orders">Pedidos (${orders.length})</button>
                         <button class="tab-btn" data-tab="conversations">Conversas (${messages.length})</button>
+                        <button class="tab-btn" data-tab="chat">Chat Direto</button>
                     </div>
                     
                     <div class="tab-content">
@@ -1013,6 +1115,9 @@ class SistemaPedidos {
                         </div>
                         <div class="tab-pane" data-tab="conversations">
                             ${this.renderCustomerConversations(messages)}
+                        </div>
+                        <div class="tab-pane" data-tab="chat">
+                            ${this.renderCustomerDirectChat(customer)}
                         </div>
                     </div>
                 </div>
@@ -1078,6 +1183,58 @@ class SistemaPedidos {
                 `).join('')}
             </div>
         `;
+    }
+    
+    renderCustomerDirectChat(customer) {
+        return `
+            <div class="customer-direct-chat">
+                <div class="chat-messages" id="customerChatMessages">
+                    ${this.getCustomerDirectMessages(customer).map(msg => `
+                        <div class="chat-message ${msg.direction}">
+                            <div class="message-content">${msg.message}</div>
+                            <div class="message-time">${new Date(msg.created_at).toLocaleTimeString('pt-BR')}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${this.permissions.enviarChat ? `
+                <div class="chat-input">
+                    <input type="text" id="newCustomerMessage" placeholder="Digite sua mensagem para o cliente..." maxlength="500">
+                    <button class="btn btn-primary" id="sendCustomerMessageBtn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    getCustomerDirectMessages(customer) {
+        // Buscar mensagens diretas do cliente (não associadas a pedidos)
+        // Esta função deve ser implementada para buscar da API
+        return [];
+    }
+    
+    async sendDirectMessageToCustomer(customerId, message) {
+        try {
+            const messageData = {
+                customer_id: customerId,
+                direction: 'outbound',
+                channel: 'chat',
+                message: message,
+                created_at: new Date().toISOString()
+            };
+            
+            // Salvar mensagem no banco de dados
+            await this.apiService.post('/customer-messages', messageData);
+            
+            // Registrar auditoria
+            await this.logAudit('CREATE', 'customer_messages', customerId, null, messageData);
+            
+            return true;
+        } catch (error) {
+            console.error('Erro ao enviar mensagem direta:', error);
+            return false;
+        }
     }
 
     setupCustomerTabs(modal) {
@@ -1150,6 +1307,12 @@ class SistemaPedidos {
         try {
             this.showLoading();
             const newCustomer = await this.apiService.post(API_CONFIG.ENDPOINTS.CUSTOMERS.CREATE, { name, phone });
+            
+            // Registrar auditoria da criação do cliente
+            await this.logAudit('CREATE', 'customers', newCustomer.id, null, {
+                name: newCustomer.name,
+                phone: newCustomer.phone
+            });
             
             this.showToast('Cliente criado com sucesso!', 'success');
             this.customers.push(newCustomer);
@@ -1520,8 +1683,11 @@ class SistemaPedidos {
 				status: newStatus
 			});
 
-			// Atualizar localmente
+			// Buscar pedido atual para auditoria
 			const order = this.orders.find(o => o.id === orderId);
+			const oldStatus = order ? order.status : null;
+			
+			// Atualizar localmente
 			if (order) {
 				order.status = newStatus;
 
@@ -1532,6 +1698,12 @@ class SistemaPedidos {
 					autoFinalizado = true;
 				}
 			}
+
+			// Registrar auditoria da mudança de status
+			await this.logAudit('UPDATE', 'orders', orderId, 
+				{ status: oldStatus }, 
+				{ status: newStatus }
+			);
 
 			this.closeModal();
 			this.renderKanbanBoard();
@@ -1696,6 +1868,15 @@ class SistemaPedidos {
             // Adicionar o novo pedido ao cache local
             this.orders.unshift(newOrder);
             
+            // Registrar auditoria da criação do pedido
+            await this.logAudit('CREATE', 'orders', newOrder.id, null, {
+                customer: orderData.customer,
+                phone: orderData.phone,
+                type: orderData.type,
+                address: orderData.address,
+                items_count: orderData.items.length
+            });
+            
             this.closeModal();
             this.renderKanbanBoard();
             this.showToast('Novo pedido criado com sucesso!', 'success');
@@ -1808,16 +1989,33 @@ class SistemaPedidos {
             
             let savedUser;
             if (existingUserId) {
+                // Buscar usuário atual para auditoria
+                const currentUser = this.users.find(u => u.id === existingUserId);
+                const oldProfileId = currentUser ? currentUser.profileId : null;
+                
                 // Atualizar usuário existente
                 savedUser = await this.apiService.put(`${API_CONFIG.ENDPOINTS.USERS.UPDATE}/${existingUserId}`, userData);
                 const userIndex = this.users.findIndex(u => u.id === existingUserId);
                 if (userIndex !== -1) {
                     this.users[userIndex] = savedUser;
                 }
+                
+                // Registrar auditoria da mudança de perfil se houve alteração
+                if (oldProfileId !== profileId) {
+                    await this.logProfileChange(existingUserId, oldProfileId, profileId);
+                }
             } else {
                 // Criar novo usuário
                 savedUser = await this.apiService.post(API_CONFIG.ENDPOINTS.USERS.CREATE, userData);
                 this.users.push(savedUser);
+                
+                // Registrar auditoria da criação do usuário
+                await this.logAudit('CREATE', 'users', savedUser.id, null, {
+                    name: savedUser.name,
+                    email: savedUser.email,
+                    username: savedUser.username,
+                    profile_id: savedUser.profileId
+                });
             }
 
             this.closeModal();
@@ -1850,6 +2048,14 @@ class SistemaPedidos {
 
         try {
             this.showLoading();
+            
+            // Registrar auditoria antes de excluir
+            await this.logAudit('DELETE', 'users', userId, {
+                name: user.name,
+                email: user.email,
+                username: user.username,
+                profile_id: user.profileId
+            }, null);
             
             await this.apiService.delete(`${API_CONFIG.ENDPOINTS.USERS.DELETE}/${userId}`);
             
@@ -2071,6 +2277,9 @@ class SistemaPedidos {
                 newPassword
             });
 
+            // Registrar auditoria da mudança de senha
+            await this.logPasswordChange(me.id);
+
             this.closeModal();
             this.showToast('Senha alterada com sucesso!', 'success');
         } catch (error) {
@@ -2168,16 +2377,25 @@ class SistemaPedidos {
             
             let updatedProduct;
             if (productId) {
+                // Buscar produto atual para auditoria
+                const currentProduct = this.products.find(p => p.id === productId);
+                
                 // Atualizar produto existente
                 updatedProduct = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PRODUCTS.UPDATE}/${productId}`, productData);
                 const productIndex = this.products.findIndex(p => p.id === productId);
                 if (productIndex !== -1) {
                     this.products[productIndex] = updatedProduct;
                 }
+                
+                // Registrar auditoria da atualização
+                await this.logAudit('UPDATE', 'products', productId, currentProduct, updatedProduct);
             } else {
                 // Criar novo produto
                 updatedProduct = await this.apiService.post(API_CONFIG.ENDPOINTS.PRODUCTS.CREATE, productData);
                 this.products.push(updatedProduct);
+                
+                // Registrar auditoria da criação
+                await this.logAudit('CREATE', 'products', updatedProduct.id, null, updatedProduct);
             }
 
             this.closeModal();
@@ -2212,6 +2430,12 @@ class SistemaPedidos {
             if (productIndex !== -1) {
                 this.products[productIndex] = updatedProduct;
             }
+            
+            // Registrar auditoria da mudança de status
+            await this.logAudit('UPDATE', 'products', productId, 
+                { active: product.active }, 
+                { active: updatedProduct.active }
+            );
 
             this.renderCardapio(document.getElementById('cardapioSection'));
             this.showToast(`Produto ${updatedProduct.active ? 'ativado' : 'desativado'} com sucesso!`, 'success');
@@ -2232,6 +2456,9 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
+            // Registrar auditoria antes de excluir
+            await this.logAudit('DELETE', 'products', productId, product, null);
+            
             await this.apiService.delete(`${API_CONFIG.ENDPOINTS.PRODUCTS.DELETE}/${productId}`);
             
             // Remover do cache local
@@ -2251,7 +2478,7 @@ class SistemaPedidos {
     // 7. UTILITÁRIOS
     // =================================================================
 
-    addChatMessage(orderId, message) {
+    async addChatMessage(orderId, message) {
         const order = this.orders.find(o => o.id === orderId);
         if (order) {
             if (!order.chat) order.chat = [];
@@ -2260,6 +2487,23 @@ class SistemaPedidos {
                 message: message,
                 time: new Date()
             });
+            
+            // Salvar mensagem no banco de dados
+            try {
+                const messageData = {
+                    order_id: orderId,
+                    sender: 'system',
+                    message: message,
+                    created_at: new Date().toISOString()
+                };
+                
+                await this.apiService.post('/order-chat-messages', messageData);
+                
+                // Registrar auditoria da mensagem
+                await this.logAudit('CREATE', 'order_chat_messages', orderId, null, messageData);
+            } catch (error) {
+                console.error('Erro ao salvar mensagem de chat:', error);
+            }
         }
     }
 

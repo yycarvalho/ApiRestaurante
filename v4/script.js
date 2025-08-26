@@ -215,22 +215,32 @@ class ApiService {
 
 class SistemaPedidos {
     constructor() {
-        // Estado da Aplicação
         this.currentUser = null;
-        this.currentProfile = null;
         this.permissions = {};
-        this.activeSection = 'dashboard';
-        
-        // Serviço de API
-        this.apiService = new ApiService();
-        
-        // Cache de dados
         this.products = [];
         this.orders = [];
+        this.customers = [];
         this.profiles = [];
         this.users = [];
-        this.metrics = {};
+        this.apiService = new ApiService();
+        this.currentSection = 'dashboard';
+        this.orderStatuses = [
+            { id: 'pending', name: 'Pendente', color: '#ffc107' },
+            { id: 'confirmed', name: 'Confirmado', color: '#17a2b8' },
+            { id: 'preparing', name: 'Em Preparo', color: '#fd7e14' },
+            { id: 'ready', name: 'Pronto', color: '#28a745' },
+            { id: 'delivering', name: 'Em Entrega', color: '#6f42c1' },
+            { id: 'delivered', name: 'Entregue', color: '#20c997' },
+            { id: 'cancelled', name: 'Cancelado', color: '#dc3545' }
+        ];
+        this.orderTypes = [
+            { id: 'delivery', name: 'Entrega' },
+            { id: 'pickup', name: 'Retirada' }
+        ];
+        this.init();
+    }
 
+    init() {
         // Inicialização
         this.initializeEventListeners();
         this.checkExistingSession();
@@ -292,8 +302,8 @@ class SistemaPedidos {
 
                 if (ordersChanged || metricsChanged || productsChanged || profilesChanged || usersChanged) {
                     // Re-renderizar seção ativa
-                    if (this.activeSection) {
-                        this.renderSectionContent(this.activeSection);
+                    if (this.currentSection) {
+                        this.renderSectionContent(this.currentSection);
                     }
                 }
             } catch (e) {
@@ -389,13 +399,13 @@ class SistemaPedidos {
 
             // Status dos Pedidos (mantido local por ser configuração)
             this.orderStatuses = [
-                { id: 'atendimento', name: 'Em Atendimento' },
-                { id: 'pagamento', name: 'Aguardando Pagamento' },
-                { id: 'feito', name: 'Pedido Feito' },
-                { id: 'preparo', name: 'Em Preparo' },
-                { id: 'pronto', name: 'Pronto' },
-                { id: 'coletado', name: 'Coletado' },
-                { id: 'finalizado', name: 'Finalizado' }
+                { id: 'pending', name: 'Pendente', color: '#ffc107' },
+                { id: 'confirmed', name: 'Confirmado', color: '#17a2b8' },
+                { id: 'preparing', name: 'Em Preparo', color: '#fd7e14' },
+                { id: 'ready', name: 'Pronto', color: '#28a745' },
+                { id: 'delivering', name: 'Em Entrega', color: '#6f42c1' },
+                { id: 'delivered', name: 'Entregue', color: '#20c997' },
+                { id: 'cancelled', name: 'Cancelado', color: '#dc3545' }
             ];
 
             // Lista de todas as permissões disponíveis (mantido local)
@@ -489,6 +499,13 @@ class SistemaPedidos {
             this.showMainSystem();
             this.showToast('Login realizado com sucesso!', 'success');
 
+            // Log de login bem-sucedido
+            this.logUserActivity('login_sucesso', `Usuário ${username} fez login no sistema`);
+            this.logSystemAction('user_login', `Usuário ${username} autenticado com sucesso`, 'info', {
+                username: username,
+                profileId: this.currentProfile
+            });
+
         } catch (error) {
             console.error('Erro no login:', error);
             this.showToast(error.message || 'Erro ao fazer login. Tente novamente.', 'error');
@@ -499,6 +516,14 @@ class SistemaPedidos {
 
     async logout() {
         try {
+            // Log de logout
+            if (this.currentUser) {
+                this.logUserActivity('logout', `Usuário ${this.currentUser} fez logout do sistema`);
+                this.logSystemAction('user_logout', `Usuário ${this.currentUser} desconectado`, 'info', {
+                    username: this.currentUser
+                });
+            }
+
             // Tentar fazer logout na API
             if (this.apiService.token) {
                 await this.apiService.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT);
@@ -515,6 +540,7 @@ class SistemaPedidos {
             // Limpar cache de dados
             this.products = [];
             this.orders = [];
+            this.customers = [];
             this.profiles = [];
             this.users = [];
             this.metrics = {};
@@ -598,7 +624,7 @@ class SistemaPedidos {
     }
 
     navigateToSection(section) {
-        this.activeSection = section;
+        this.currentSection = section;
 
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.toggle('active', item.dataset.section === section);
@@ -642,15 +668,19 @@ class SistemaPedidos {
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h3>Pedidos Hoje</h3>
-                    <div class="value">${this.metrics?.totalPedidosHoje ?? 0}</div>
+                    <div class="value">${this.orders.filter(o => {
+                        const today = new Date().toDateString();
+                        const orderDate = new Date(o.createdAt).toDateString();
+                        return orderDate === today && o.status !== 'cancelled';
+                    }).length}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Faturamento</h3>
-                    <div class="value">R$ ${Number(this.metrics?.valorTotalArrecadado ?? 0).toFixed(2)}</div>
+                    <div class="value">R$ ${this.orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2)}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Pedidos Ativos</h3>
-                    <div class="value">${this.orders.filter(o => o.status !== 'finalizado').length}</div>
+                    <div class="value">${this.orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length}</div>
                 </div>
             </div>
             <div class="charts-grid">
@@ -978,55 +1008,101 @@ class SistemaPedidos {
     }
 
     showCustomerDetailsModal(customer, orders, messages) {
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content modal-large">
-                <div class="modal-header">
-                    <h2>Detalhes do Cliente</h2>
-                    <button class="modal-close" onclick="this.closest('.modal').remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="customer-details">
-                        <div class="customer-profile">
-                            <div class="customer-avatar large">
-                                <i class="fas fa-user"></i>
-                            </div>
-                            <div class="customer-info">
-                                <h3>${customer.name}</h3>
-                                <p>${customer.phone}</p>
-                                <p>Cliente desde: ${new Date(customer.createdAt).toLocaleDateString('pt-BR')}</p>
-                            </div>
+        const modalHTML = `
+            <div class="modal-header">
+                <h3>Cliente: ${customer.name}</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="customer-details-container">
+                    <div class="customer-info">
+                        <h4>Informações do Cliente</h4>
+                        <p><strong>Nome:</strong> ${customer.name}</p>
+                        <p><strong>Telefone:</strong> ${customer.phone}</p>
+                        <p><strong>Cliente desde:</strong> ${new Date(customer.createdAt).toLocaleDateString('pt-BR')}</p>
+                        <p><strong>Total de Pedidos:</strong> ${orders.length}</p>
+                        <p><strong>Valor Total:</strong> R$ ${orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2)}</p>
+                        
+                        <h4>Histórico de Pedidos</h4>
+                        <div class="customer-orders-list">
+                            ${orders.length > 0 ? orders.map(order => `
+                                <div class="customer-order-item">
+                                    <div class="order-header">
+                                        <span class="order-id">#${order.id}</span>
+                                        <span class="order-status ${order.status}">${this.getStatusName(order.status)}</span>
+                                        <span class="order-date">${new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                    <div class="order-items">
+                                        ${order.items.map(item => `
+                                            <span class="order-item">${item.quantity}x ${item.productName}</span>
+                                        `).join('')}
+                                    </div>
+                                    <div class="order-footer">
+                                        <span class="order-total">R$ ${order.total.toFixed(2)}</span>
+                                        <span class="order-type ${order.type}">${order.type === 'delivery' ? 'Entrega' : 'Retirada'}</span>
+                                    </div>
+                                </div>
+                            `).join('') : '<div class="empty-state">Nenhum pedido encontrado</div>'}
                         </div>
                     </div>
                     
-                    <div class="customer-tabs">
-                        <button class="tab-btn active" data-tab="orders">Pedidos (${orders.length})</button>
-                        <button class="tab-btn" data-tab="conversations">Conversas (${messages.length})</button>
-                    </div>
-                    
-                    <div class="tab-content">
-                        <div class="tab-pane active" data-tab="orders">
-                            ${this.renderCustomerOrders(orders)}
+                    ${this.permissions.verChat ? `
+                    <div class="customer-chat">
+                        <h4>Chat com o Cliente</h4>
+                        <div class="chat-messages" id="customerChatMessages">
+                            ${messages.length > 0 ? messages.map(msg => `
+                                <div class="chat-message ${msg.sender}">
+                                    <div class="message-content">${msg.message}</div>
+                                    <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                                    ${msg.orderId ? `<div class="message-order">Pedido #${msg.orderId}</div>` : ''}
+                                </div>
+                            `).join('') : '<div class="empty-state">Nenhuma mensagem encontrada</div>'}
                         </div>
-                        <div class="tab-pane" data-tab="conversations">
-                            ${this.renderCustomerConversations(messages)}
+                        ${this.permissions.enviarChat ? `
+                        <div class="chat-input">
+                            <input type="text" id="newCustomerMessage" placeholder="Digite sua mensagem..." maxlength="500">
+                            <button class="btn btn-primary" id="sendCustomerMessageBtn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
                         </div>
+                        ` : ''}
                     </div>
+                    ` : ''}
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeCustomerModalBtn">Fechar</button>
+                ${this.permissions.verChat && this.permissions.enviarChat ? `<button class="btn btn-primary" id="refreshCustomerChatBtn"><i class="fas fa-sync"></i> Atualizar Chat</button>` : ''}
             </div>
         `;
         
-        document.body.appendChild(modal);
-        
-        // Configurar tabs
-        this.setupCustomerTabs(modal);
-        
-        // Fechar modal ao clicar fora
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+        this.renderModal(modalHTML, (modal) => {
+            modal.querySelector('#closeCustomerModalBtn').onclick = () => this.closeModal();
+            modal.querySelector('.modal-close').onclick = () => this.closeModal();
+            
+            if (modal.querySelector('#sendCustomerMessageBtn')) {
+                const sendMessage = () => {
+                    const messageInput = modal.querySelector('#newCustomerMessage');
+                    const message = messageInput.value.trim();
+                    if (message) {
+                        this.addCustomerMessage(customer.id, message);
+                        messageInput.value = '';
+                        // Recarregar o modal para mostrar a nova mensagem
+                        this.showCustomerDetails(customer.id);
+                    }
+                };
+                
+                modal.querySelector('#sendCustomerMessageBtn').onclick = sendMessage;
+                modal.querySelector('#newCustomerMessage').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') sendMessage();
+                });
+            }
+            
+            if (modal.querySelector('#refreshCustomerChatBtn')) {
+                modal.querySelector('#refreshCustomerChatBtn').onclick = () => {
+                    this.showCustomerDetails(customer.id);
+                };
+            }
         });
     }
 
@@ -1515,31 +1591,48 @@ class SistemaPedidos {
 		try {
 			this.showLoading();
 			
+			// Buscar pedido atual para auditoria
+			const order = this.orders.find(o => o.id === orderId);
+			const oldStatus = order ? order.status : null;
+			
 			// Atualizar status na API
 			await this.apiService.patch(`${API_CONFIG.ENDPOINTS.ORDERS.UPDATE_STATUS}/${orderId}/status`, {
 				status: newStatus
 			});
 
 			// Atualizar localmente
-			const order = this.orders.find(o => o.id === orderId);
 			if (order) {
 				order.status = newStatus;
 
 				// regra: se for retirada (pickup) e marcar "pronto", finaliza automaticamente
 				let autoFinalizado = false;
-				if (order.type === 'pickup' && newStatus === 'coletado') {
-					order.status = 'finalizado';
+				if (order.type === 'pickup' && newStatus === 'ready') {
+					order.status = 'delivered';
 					autoFinalizado = true;
 				}
 			}
 
+			// Log de auditoria
+			this.auditTrail('orders', orderId, 'UPDATE', 
+				{ status: oldStatus }, 
+				{ status: newStatus }
+			);
+
+			// Log de atividade do usuário
+			this.logUserActivity('alterar_status_pedido', `Status do pedido ${orderId} alterado de ${this.getStatusName(oldStatus)} para ${this.getStatusName(newStatus)}`, {
+				orderId: orderId,
+				oldStatus: oldStatus,
+				newStatus: newStatus,
+				customerName: order?.customer
+			});
+
 			this.closeModal();
 			this.renderKanbanBoard();
 			this.showToast(
-				order && order.type === 'pickup' && newStatus === 'coletado'
+				order && order.type === 'pickup' && newStatus === 'ready'
 					? `Pedido ${orderId} finalizado automaticamente (retirada pronta).`
 					: `Status do pedido ${orderId} atualizado!`,
-				order && order.type === 'pickup' && newStatus === 'coletado' ? 'info' : 'success'
+				order && order.type === 'pickup' && newStatus === 'ready' ? 'info' : 'success'
 			);
 		} catch (error) {
 			console.error('Erro ao atualizar status do pedido:', error);
@@ -2263,6 +2356,38 @@ class SistemaPedidos {
         }
     }
 
+    addCustomerMessage(customerId, message) {
+        const customer = this.customers.find(c => c.id === customerId);
+        if (!customer) return;
+
+        const newMessage = {
+            id: Date.now(),
+            customerId: customerId,
+            direction: 'outbound',
+            channel: 'chat',
+            message: message,
+            userId: this.currentUser?.id,
+            timestamp: new Date()
+        };
+
+        // Enviar para a API
+        this.apiService.post(`${API_CONFIG.ENDPOINTS.CUSTOMERS.CREATE}/${customerId}/messages`, {
+            message: message,
+            direction: 'outbound',
+            channel: 'chat',
+            userId: this.currentUser?.id
+        }).catch(error => {
+            console.error('Erro ao enviar mensagem para cliente:', error);
+            this.showToast('Erro ao enviar mensagem para cliente.', 'error');
+        });
+
+        // Log da atividade
+        this.logUserActivity('enviar_mensagem_cliente', `Mensagem enviada para cliente ${customer.name}`, {
+            customerId: customerId,
+            message: message
+        });
+    }
+
     printOrder(orderId) {
         const order = this.orders.find(o => o.id === orderId);
         if (!order) return;
@@ -2390,13 +2515,13 @@ class SistemaPedidos {
     // Funções auxiliares para clientes
     getStatusName(status) {
         const statusMap = {
-            'atendimento': 'Em Atendimento',
-            'pagamento': 'Aguardando Pagamento',
-            'feito': 'Pedido Feito',
-            'preparo': 'Em Preparo',
-            'pronto': 'Pronto',
-            'coletado': 'Coletado',
-            'finalizado': 'Finalizado'
+            'pending': 'Pendente',
+            'confirmed': 'Confirmado',
+            'preparing': 'Em Preparo',
+            'ready': 'Pronto',
+            'delivering': 'Em Entrega',
+            'delivered': 'Entregue',
+            'cancelled': 'Cancelado'
         };
         return statusMap[status] || status;
     }
@@ -2408,6 +2533,151 @@ class SistemaPedidos {
             'user': 'Atendente'
         };
         return senderMap[sender] || sender;
+    }
+
+    // =================================================================
+    // FUNÇÕES DE AUDITORIA E LOGGING
+    // =================================================================
+
+    logUserActivity(action, details, metadata = {}) {
+        const logData = {
+            action: action,
+            details: details,
+            userId: this.currentUser?.id,
+            username: this.currentUser?.username,
+            ipAddress: this.getClientIP(),
+            userAgent: navigator.userAgent,
+            sessionId: this.getSessionId(),
+            timestamp: new Date().toISOString(),
+            metadata: metadata
+        };
+
+        // Enviar para a API
+        this.apiService.post('/logs/user-activity', logData).catch(error => {
+            console.error('Erro ao registrar atividade do usuário:', error);
+        });
+
+        // Log local para debug
+        console.log('User Activity Log:', logData);
+    }
+
+    logSystemAction(action, message, level = 'info', metadata = {}) {
+        const logData = {
+            level: level,
+            action: action,
+            message: message,
+            actorUserId: this.currentUser?.id,
+            actorUsername: this.currentUser?.username,
+            ipAddress: this.getClientIP(),
+            userAgent: navigator.userAgent,
+            metadata: metadata,
+            timestamp: new Date().toISOString()
+        };
+
+        // Enviar para a API
+        this.apiService.post('/logs/system', logData).catch(error => {
+            console.error('Erro ao registrar ação do sistema:', error);
+        });
+
+        // Log local para debug
+        console.log('System Action Log:', logData);
+    }
+
+    auditTrail(tableName, recordId, action, oldValues = null, newValues = null) {
+        const auditData = {
+            tableName: tableName,
+            recordId: recordId,
+            action: action,
+            oldValues: oldValues,
+            newValues: newValues,
+            actorUserId: this.currentUser?.id,
+            actorUsername: this.currentUser?.username,
+            ipAddress: this.getClientIP(),
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+        };
+
+        // Enviar para a API
+        this.apiService.post('/logs/audit', auditData).catch(error => {
+            console.error('Erro ao registrar auditoria:', error);
+        });
+
+        // Log local para debug
+        console.log('Audit Trail:', auditData);
+    }
+
+    logPasswordChange(userId, username, changedByUserId = null, changedByUsername = null) {
+        const logData = {
+            userId: userId,
+            username: username,
+            changedByUserId: changedByUserId,
+            changedByUsername: changedByUsername,
+            ipAddress: this.getClientIP(),
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+        };
+
+        // Enviar para a API
+        this.apiService.post('/logs/password-change', logData).catch(error => {
+            console.error('Erro ao registrar mudança de senha:', error);
+        });
+
+        // Log local para debug
+        console.log('Password Change Log:', logData);
+    }
+
+    logProfilePermissionChange(profileId, profileName, oldPermissions, newPermissions, changedByUserId = null, changedByUsername = null) {
+        const logData = {
+            profileId: profileId,
+            profileName: profileName,
+            oldPermissions: oldPermissions,
+            newPermissions: newPermissions,
+            changedByUserId: changedByUserId,
+            changedByUsername: changedByUsername,
+            ipAddress: this.getClientIP(),
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+        };
+
+        // Enviar para a API
+        this.apiService.post('/logs/profile-permission-change', logData).catch(error => {
+            console.error('Erro ao registrar mudança de permissões:', error);
+        });
+
+        // Log local para debug
+        console.log('Profile Permission Change Log:', logData);
+    }
+
+    // Funções auxiliares para auditoria
+    getClientIP() {
+        // Em um ambiente real, isso viria do servidor
+        // Por enquanto, retornamos um valor padrão
+        return '127.0.0.1';
+    }
+
+    getSessionId() {
+        // Gerar um ID de sessão único
+        if (!this._sessionId) {
+            this._sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        return this._sessionId;
+    }
+
+    // Função para criptografar dados sensíveis antes de salvar
+    encryptSensitiveData(data) {
+        // Em um ambiente real, isso seria feito no servidor
+        // Por enquanto, retornamos os dados como estão
+        return btoa(JSON.stringify(data));
+    }
+
+    // Função para descriptografar dados sensíveis
+    decryptSensitiveData(encryptedData) {
+        try {
+            return JSON.parse(atob(encryptedData));
+        } catch (error) {
+            console.error('Erro ao descriptografar dados:', error);
+            return null;
+        }
     }
 }
 

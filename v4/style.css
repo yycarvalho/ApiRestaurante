@@ -988,10 +988,13 @@ body {
     font-weight: 500;
 }
 
-.order-status.atendimento { background: #fff3cd; color: #856404; }
-.order-status.preparo { background: #d1ecf1; color: #0c5460; }
-.order-status.pronto { background: #d4edda; color: #155724; }
-.order-status.finalizado { background: #c3e6cb; color: #155724; }
+.order-status.pending { background: #fff3cd; color: #856404; }
+.order-status.confirmed { background: #d1ecf1; color: #0c5460; }
+.order-status.preparing { background: #fd7e14; color: #ffffff; }
+.order-status.ready { background: #d4edda; color: #155724; }
+.order-status.delivering { background: #6f42c1; color: #ffffff; }
+.order-status.delivered { background: #20c997; color: #ffffff; }
+.order-status.cancelled { background: #dc3545; color: #ffffff; }
 
 .order-date {
     color: var(--text-secondary);
@@ -1156,5 +1159,178 @@ body {
     font-size: 48px;
     display: block;
     margin-bottom: 16px;
+}
+
+/* =================================================================
+   ESTILOS PARA MODAL DE CLIENTE
+   ================================================================= */
+
+.customer-details-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.customer-info {
+    background: var(--white);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.customer-info h4 {
+    color: var(--primary-color);
+    margin-bottom: 16px;
+    font-size: 18px;
+}
+
+.customer-info p {
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.customer-info strong {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.customer-orders-list {
+    margin-top: 20px;
+}
+
+.customer-order-item {
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.customer-order-item .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.customer-order-item .order-id {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.customer-order-item .order-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.customer-order-item .order-date {
+    color: var(--text-light);
+    font-size: 11px;
+}
+
+.customer-order-item .order-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.customer-order-item .order-item {
+    background: var(--white);
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.customer-order-item .order-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.customer-order-item .order-total {
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 14px;
+}
+
+.customer-order-item .order-type {
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.customer-chat {
+    background: var(--white);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.customer-chat h4 {
+    color: var(--primary-color);
+    margin-bottom: 16px;
+    font-size: 18px;
+}
+
+.customer-chat .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    max-height: 300px;
+}
+
+.customer-chat .chat-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.customer-chat .chat-input input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.customer-chat .chat-input button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary-color);
+    color: var(--white);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.customer-chat .chat-input button:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+/* Responsividade para o modal de cliente */
+@media (max-width: 768px) {
+    .customer-details-container {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .customer-chat .chat-messages {
+        max-height: 200px;
+    }
 }
 

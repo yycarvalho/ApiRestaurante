@@ -271,12 +271,13 @@ class SistemaPedidos {
                 const response = await this.apiService.get(API_CONFIG.ENDPOINTS.AUTH.VALIDATE);
                 
                 // Token válido, restaurar sessão
-                this.currentUser = response.user.username;
-                this.currentProfile = response.user.profileId;
-                this.permissions = response.user.permissions;
+                const validatedUser = (response && (response.user || response.data?.user)) || response || {};
+                this.currentUser = validatedUser.username || validatedUser.name || '';
+                this.currentProfile = validatedUser.profileId ?? validatedUser.profile?.id ?? null;
+                this.permissions = validatedUser.permissions || validatedUser.roles?.permissions || {};
                 
-                this.showMainSystem();
                 await this.loadInitialData();
+                this.showMainSystem();
             } catch (error) {
                 console.error('Token inválido:', error);
                 this.apiService.setToken(null);
@@ -425,14 +426,16 @@ class SistemaPedidos {
             });
 
             // Armazenar token e dados do usuário
-            this.apiService.setToken(response.token);
-            this.currentUser = response.user.username;
-            this.currentProfile = response.user.profileId;
-            this.permissions = response.user.permissions;
+            const token = response.token || response.accessToken || response.jwt;
+            this.apiService.setToken(token);
+            const loggedUser = (response && (response.user || response.data?.user)) || response || {};
+            this.currentUser = loggedUser.username || loggedUser.name || '';
+            this.currentProfile = loggedUser.profileId ?? loggedUser.profile?.id ?? null;
+            this.permissions = loggedUser.permissions || loggedUser.roles?.permissions || {};
 
-            // Atualizar UI
-            this.showMainSystem();
+            // Atualizar UI após dados carregados
             await this.loadInitialData();
+            this.showMainSystem();
             this.showToast('Login realizado com sucesso!', 'success');
 
         } catch (error) {
@@ -584,11 +587,11 @@ class SistemaPedidos {
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h3>Pedidos Hoje</h3>
-                    <div class="value">${this.metrics.totalPedidosHoje}</div>
+                    <div class="value">${this.metrics?.totalPedidosHoje ?? 0}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Faturamento</h3>
-                    <div class="value">R$ ${this.metrics.valorTotalArrecadado.toFixed(2)}</div>
+                    <div class="value">R$ ${Number(this.metrics?.valorTotalArrecadado ?? 0).toFixed(2)}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Pedidos Ativos</h3>
@@ -612,12 +615,15 @@ class SistemaPedidos {
     renderCharts() {
         // Gráfico de Status de Pedidos
         const statusCtx = document.getElementById('statusChart').getContext('2d');
+        const pedidosPorStatus = this.metrics?.pedidosPorStatus || {};
+        const statusLabels = Object.keys(pedidosPorStatus).map(s => this.orderStatuses?.find(os => os.id === s)?.name || s);
+        const statusData = Object.values(pedidosPorStatus);
         new Chart(statusCtx, {
             type: 'doughnut',
             data: {
-                labels: Object.keys(this.metrics.pedidosPorStatus).map(s => this.orderStatuses.find(os => os.id === s)?.name || s),
+                labels: statusLabels,
                 datasets: [{
-                    data: Object.values(this.metrics.pedidosPorStatus),
+                    data: statusData,
                     backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#10b981', '#6366f1', '#6b7280'],
                 }]
             },
@@ -626,13 +632,14 @@ class SistemaPedidos {
 
         // Gráfico de Faturamento
         const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+        const faturamentoMensal = Array.isArray(this.metrics?.faturamentoMensal) ? this.metrics.faturamentoMensal : new Array(12).fill(0);
         new Chart(revenueCtx, {
             type: 'line',
             data: {
                 labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago','Set','Out','Nov','Dez'],
                 datasets: [{
                     label: 'Faturamento',
-                    data: this.metrics.faturamentoMensal,
+                    data: faturamentoMensal,
                     borderColor: '#6a5af9',
                     backgroundColor: 'rgba(106, 90, 249, 0.1)',
                     fill: true,
@@ -661,7 +668,8 @@ class SistemaPedidos {
         const kanbanBoard = document.getElementById('kanbanBoard');
         kanbanBoard.innerHTML = '';
 
-        this.orderStatuses.forEach(status => {
+        const statuses = Array.isArray(this.orderStatuses) ? this.orderStatuses : [];
+        statuses.forEach(status => {
             const column = document.createElement('div');
             column.className = 'kanban-column';
             column.dataset.statusId = status.id;

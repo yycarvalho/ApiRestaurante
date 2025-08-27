@@ -118,6 +118,10 @@ public class ApiController {
     private class LoginHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -133,6 +137,7 @@ public class ApiController {
             
             try {
                 String requestBody = readRequestBody(exchange);
+                System.out.println("Payload (Login): " + requestBody);
                 LoginRequest loginRequest = objectMapper.readValue(requestBody, LoginRequest.class);
                 
                 LoginResponse response = authService.login(loginRequest);
@@ -152,6 +157,10 @@ public class ApiController {
     private class LogoutHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -182,6 +191,10 @@ public class ApiController {
     private class ValidateTokenHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -218,6 +231,10 @@ public class ApiController {
     private class UsersHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -244,6 +261,7 @@ public class ApiController {
                         
                     case "POST":
                         String requestBody = readRequestBody(exchange);
+                        System.out.println("Payload (Users POST): " + requestBody);
                         User newUser = objectMapper.readValue(requestBody, User.class);
                         User createdUser = userService.create(newUser);
                         sendJsonResponse(exchange, 201, createdUser);
@@ -255,6 +273,7 @@ public class ApiController {
                         if (pathParts.length >= 4) {
                             Long userId = Long.parseLong(pathParts[3]);
                             String updateBody = readRequestBody(exchange);
+                            System.out.println("Payload (Users PUT): " + updateBody);
                             User updateUser = objectMapper.readValue(updateBody, User.class);
                             User updatedUser = userService.update(userId, updateUser);
                             sendJsonResponse(exchange, 200, updatedUser);
@@ -333,6 +352,10 @@ public class ApiController {
     private class ProfilesHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -357,6 +380,7 @@ public class ApiController {
                             return;
                         }
                         String requestBody = readRequestBody(exchange);
+                        System.out.println("Payload (Profiles POST): " + requestBody);
                         Profile newProfile = objectMapper.readValue(requestBody, Profile.class);
                         Profile createdProfile = profileService.create(newProfile);
                         sendJsonResponse(exchange, 201, createdProfile);
@@ -371,6 +395,7 @@ public class ApiController {
                         if (pathParts.length >= 4) {
                             Long profileId = Long.parseLong(pathParts[3]);
                             String updateBody = readRequestBody(exchange);
+                            System.out.println("Payload (Profiles PUT): " + updateBody);
                             Profile updateProfile = objectMapper.readValue(updateBody, Profile.class);
                             Profile updatedProfile = profileService.update(profileId, updateProfile);
                             sendJsonResponse(exchange, 200, updatedProfile);
@@ -417,6 +442,10 @@ public class ApiController {
     private class ProductsHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -441,6 +470,7 @@ public class ApiController {
                             return;
                         }
                         String requestBody = readRequestBody(exchange);
+                        System.out.println("Payload (Products POST): " + requestBody);
                         Product newProduct = objectMapper.readValue(requestBody, Product.class);
                         Product createdProduct = productService.create(newProduct);
                         sendJsonResponse(exchange, 201, createdProduct);
@@ -455,6 +485,7 @@ public class ApiController {
                         if (pathParts.length >= 4) {
                             Long productId = Long.parseLong(pathParts[3]);
                             String updateBody = readRequestBody(exchange);
+                            System.out.println("Payload (Products PUT): " + updateBody);
                             Product updateProduct = objectMapper.readValue(updateBody, Product.class);
                             Product updatedProduct = productService.update(productId, updateProduct);
                             sendJsonResponse(exchange, 200, updatedProduct);
@@ -503,6 +534,10 @@ public class ApiController {
     private class OrdersHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -528,6 +563,7 @@ public class ApiController {
                         
                     case "POST":
                         String requestBody = readRequestBody(exchange);
+                        System.out.println("Payload (Orders POST): " + requestBody);
                         Order newOrder = objectMapper.readValue(requestBody, Order.class);
                         Order createdOrder = orderService.create(newOrder);
                         sendJsonResponse(exchange, 201, createdOrder);
@@ -539,6 +575,7 @@ public class ApiController {
                         if (pathParts.length >= 5 && "status".equals(pathParts[4])) {
                             String orderId = pathParts[3];
                             String statusBody = readRequestBody(exchange);
+                            System.out.println("Payload (Orders PATCH): " + statusBody);
                             Map<String, String> statusData = objectMapper.readValue(statusBody, Map.class);
                             String newStatus = statusData.get("status");
                             
@@ -568,6 +605,10 @@ public class ApiController {
     private class DashboardMetricsHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -602,6 +643,10 @@ public class ApiController {
     private class ReportsHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
             
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -649,6 +694,10 @@ public class ApiController {
     private class CustomersHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println("\n--- Nova Requisição ---");
+            System.out.println("URI: " + exchange.getRequestURI());
+            System.out.println("Método: " + exchange.getRequestMethod());
+            System.out.println("Headers: " + exchange.getRequestHeaders());
             addCorsHeaders(exchange);
 
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
@@ -685,6 +734,7 @@ public class ApiController {
                         break;
                     case "POST":
                         String body = readRequestBody(exchange);
+                        System.out.println("Payload (Customers POST): " + body);
                         Map data = objectMapper.readValue(body, Map.class);
                         String name = (String) data.get("name");
                         String phone = (String) data.get("phone");

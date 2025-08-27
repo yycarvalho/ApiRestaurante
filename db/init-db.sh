@@ -1,78 +1,46 @@
 #!/bin/bash
 
 # Script para inicializar o banco de dados MySQL
-# Este script cria o banco de dados e as tabelas necessárias
+# Execute este script após instalar o MySQL
 
 echo "=== Inicializando Banco de Dados do Sistema de Pedidos ==="
 
-# Configurações do banco de dados
-DB_HOST="localhost"
-DB_PORT="3306"
-DB_USER="root"
-DB_PASS=""
-DB_NAME="pedidos"
-
 # Verificar se o MySQL está rodando
-if ! command -v mysql &> /dev/null; then
-    echo "❌ MySQL não está instalado ou não está no PATH"
+if ! mysqladmin ping -h localhost -u root --silent; then
+    echo "❌ MySQL não está rodando. Inicie o serviço primeiro."
+    echo "   sudo systemctl start mysql"
     exit 1
 fi
 
-# Tentar conectar ao MySQL
-if ! mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -P"$DB_PORT" -e "SELECT 1;" &> /dev/null; then
-    echo "❌ Não foi possível conectar ao MySQL"
-    echo "Verifique se o MySQL está rodando e as credenciais estão corretas"
-    exit 1
-fi
+# Ler configurações do ambiente
+DB_HOST=${DB_HOST:-localhost}
+DB_PORT=${DB_PORT:-3306}
+DB_NAME=${DB_NAME:-pedidos}
+DB_USER=${DB_USER:-root}
+DB_PASS=${DB_PASS:-}
 
-echo "✅ Conectado ao MySQL com sucesso"
+echo "📊 Configurações do Banco:"
+echo "   Host: $DB_HOST"
+echo "   Porta: $DB_PORT"
+echo "   Banco: $DB_NAME"
+echo "   Usuário: $DB_USER"
 
-# Criar banco de dados e tabelas
-echo "📦 Criando banco de dados e tabelas..."
-mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -P"$DB_PORT" < schema.sql
+# Criar banco de dados se não existir
+echo "🗄️  Criando banco de dados..."
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER ${DB_PASS:+-p$DB_PASS} -e "CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
 
-if [ $? -eq 0 ]; then
-    echo "✅ Schema criado com sucesso"
-else
-    echo "❌ Erro ao criar schema"
-    exit 1
-fi
+# Executar schema
+echo "📋 Executando schema..."
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER ${DB_PASS:+-p$DB_PASS} $DB_NAME < schema.sql
 
-# Inserir dados de exemplo
-echo "📝 Inserindo dados de exemplo..."
-mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -P"$DB_PORT" < init-data.sql
-
-if [ $? -eq 0 ]; then
-    echo "✅ Dados de exemplo inseridos com sucesso"
-else
-    echo "❌ Erro ao inserir dados de exemplo"
-    exit 1
-fi
-
-# Verificar se tudo foi criado corretamente
-echo "🔍 Verificando estrutura do banco de dados..."
-mysql -u"$DB_USER" -p"$DB_PASS" -h"$DB_HOST" -P"$DB_PORT" -e "
-USE $DB_NAME;
-SHOW TABLES;
-SELECT 'Profiles:' as info, COUNT(*) as count FROM profiles;
-SELECT 'Users:' as info, COUNT(*) as count FROM users;
-SELECT 'Products:' as info, COUNT(*) as count FROM products;
-SELECT 'Customers:' as info, COUNT(*) as count FROM customers;
-SELECT 'Orders:' as info, COUNT(*) as count FROM orders;
-SELECT 'Permissions:' as info, COUNT(*) as count FROM permissions;
-"
-
+echo "✅ Banco de dados inicializado com sucesso!"
 echo ""
-echo "🎉 Banco de dados inicializado com sucesso!"
+echo "📝 Próximos passos:"
+echo "   1. Configure as variáveis de ambiente no arquivo .env"
+echo "   2. Execute o script de compilação da API Java"
+echo "   3. Inicie a API Java"
+echo "   4. Abra o frontend no navegador"
 echo ""
-echo "📋 Resumo:"
-echo "   - Banco de dados: $DB_NAME"
-echo "   - Host: $DB_HOST:$DB_PORT"
-echo "   - Usuário: $DB_USER"
-echo ""
-echo "🔑 Credenciais padrão:"
-echo "   - Admin: admin / 123"
-echo "   - Atendente: atendente / 123"
-echo "   - Entregador: entregador / 123"
-echo ""
-echo "🚀 O sistema está pronto para uso!"
+echo "🔗 URLs:"
+echo "   - Frontend: http://localhost:3000"
+echo "   - API Java: http://localhost:8080/api"

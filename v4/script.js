@@ -225,13 +225,13 @@ class SistemaPedidos {
         this.apiService = new ApiService();
         this.currentSection = 'dashboard';
         this.orderStatuses = [
-            { id: 'em_atendimento', name: 'Em Atendimento', color: '#ffc107' },
-            { id: 'aguardando_pagamento', name: 'Aguardando Pagamento', color: '#17a2b8' },
-            { id: 'pedido_feito', name: 'Pedido Feito', color: '#fd7e14' },
-            { id: 'cancelado', name: 'Cancelado', color: '#dc3545' },
-            { id: 'coletado', name: 'Coletado', color: '#6f42c1' },
-            { id: 'pronto', name: 'Pronto', color: '#28a745' },
-            { id: 'finalizado', name: 'Finalizado', color: '#20c997' }
+            { id: 'pending', name: 'Pendente', color: '#ffc107' },
+            { id: 'confirmed', name: 'Confirmado', color: '#17a2b8' },
+            { id: 'preparing', name: 'Em Preparo', color: '#fd7e14' },
+            { id: 'ready', name: 'Pronto', color: '#28a745' },
+            { id: 'delivering', name: 'Em Entrega', color: '#6f42c1' },
+            { id: 'delivered', name: 'Entregue', color: '#20c997' },
+            { id: 'cancelled', name: 'Cancelado', color: '#dc3545' }
         ];
         this.orderTypes = [
             { id: 'delivery', name: 'Entrega' },
@@ -970,11 +970,11 @@ class SistemaPedidos {
             
             // Buscar pedidos do cliente
             const customerOrders = this.orders.filter(o => 
-                o.customerId === customerId || o.customer === customer.name || o.phone === customer.phone
+                o.customer === customer.name || o.phone === customer.phone
             );
             
-            // Buscar mensagens do cliente do banco de dados
-            const customerMessages = await this.loadCustomerMessages(customerId);
+            // Buscar mensagens do cliente (se implementado na API)
+            const customerMessages = this.getCustomerMessages(customer);
             
             this.showCustomerDetailsModal(customer, customerOrders, customerMessages);
         } catch (error) {
@@ -1081,18 +1081,14 @@ class SistemaPedidos {
             modal.querySelector('.modal-close').onclick = () => this.closeModal();
             
             if (modal.querySelector('#sendCustomerMessageBtn')) {
-                const sendMessage = async () => {
+                const sendMessage = () => {
                     const messageInput = modal.querySelector('#newCustomerMessage');
                     const message = messageInput.value.trim();
                     if (message) {
-                        try {
-                            await this.addCustomerMessage(customer.id, message);
-                            messageInput.value = '';
-                            // Recarregar o modal para mostrar a nova mensagem
-                            this.showCustomerDetails(customer.id);
-                        } catch (error) {
-                            console.error('Erro ao enviar mensagem:', error);
-                        }
+                        this.addCustomerMessage(customer.id, message);
+                        messageInput.value = '';
+                        // Recarregar o modal para mostrar a nova mensagem
+                        this.showCustomerDetails(customer.id);
                     }
                 };
                 
@@ -1181,39 +1177,46 @@ class SistemaPedidos {
     }
 
     showNewCustomerModal() {
-        const modalHTML = `
-            <div class="modal-header">
-                <h3>Novo Cliente</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="newCustomerForm">
-                    <div class="form-group">
-                        <label for="customerName">Nome</label>
-                        <input type="text" id="customerName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="customerPhone">Telefone</label>
-                        <input type="tel" id="customerPhone" required>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelNewCustomerBtn">Cancelar</button>
-                <button class="btn btn-primary" id="saveNewCustomerBtn">Salvar</button>
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Novo Cliente</h2>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="newCustomerForm">
+                        <div class="form-group">
+                            <label for="customerName">Nome</label>
+                            <input type="text" id="customerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="customerPhone">Telefone</label>
+                            <input type="tel" id="customerPhone" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="sistema.saveNewCustomer()">Salvar</button>
+                </div>
             </div>
         `;
         
-        this.renderModal(modalHTML, (modal) => {
-            modal.querySelector('#cancelNewCustomerBtn').onclick = () => this.closeModal();
-            modal.querySelector('.modal-close').onclick = () => this.closeModal();
-            modal.querySelector('#saveNewCustomerBtn').onclick = () => this.saveNewCustomer(modal);
+        document.body.appendChild(modal);
+        
+        // Fechar modal ao clicar fora
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
         });
     }
 
-    async saveNewCustomer(modal) {
-        const name = modal.querySelector('#customerName').value.trim();
-        const phone = modal.querySelector('#customerPhone').value.trim();
+    async saveNewCustomer() {
+        const name = document.getElementById('customerName').value.trim();
+        const phone = document.getElementById('customerPhone').value.trim();
         
         if (!name || !phone) {
             this.showToast('Nome e telefone são obrigatórios.', 'error');
@@ -1228,7 +1231,8 @@ class SistemaPedidos {
             this.customers.push(newCustomer);
             this.renderCustomersGrid();
             
-            this.closeModal();
+            // Fechar modal
+            document.querySelector('.modal').remove();
         } catch (error) {
             console.error('Erro ao criar cliente:', error);
             this.showToast('Erro ao criar cliente.', 'error');
@@ -1465,7 +1469,12 @@ class SistemaPedidos {
                     <div class="order-chat">
                         <h4>Chat do Pedido</h4>
                         <div class="chat-messages" id="chatMessages">
-                            <div class="loading-placeholder">Carregando mensagens...</div>
+                            ${order.chat ? order.chat.map(msg => `
+                                <div class="chat-message ${msg.sender}">
+                                    <div class="message-content">${msg.message}</div>
+                                    <div class="message-time">${new Date(msg.time).toLocaleTimeString()}</div>
+                                </div>
+                            `).join('') : ''}
                         </div>
                         ${this.permissions.enviarChat ? `
                         <div class="chat-input">
@@ -1490,7 +1499,7 @@ class SistemaPedidos {
             </div>
         `;
         
-        this.renderModal(modalHTML, async (modal) => {
+        this.renderModal(modalHTML, (modal) => {
             modal.querySelector('#closeModalBtn').onclick = () => this.closeModal();
             modal.querySelector('.modal-close').onclick = () => this.closeModal();
             
@@ -1502,41 +1511,15 @@ class SistemaPedidos {
                 modal.querySelector('#printOrderBtn').onclick = () => this.printOrder(orderId);
             }
             
-            // Carregar mensagens do chat se existir
-            if (modal.querySelector('#chatMessages')) {
-                try {
-                    const messages = await this.loadOrderMessages(orderId);
-                    const chatMessagesContainer = modal.querySelector('#chatMessages');
-                    
-                    if (messages && messages.length > 0) {
-                        chatMessagesContainer.innerHTML = messages.map(msg => `
-                            <div class="chat-message ${msg.sender}">
-                                <div class="message-content">${msg.message}</div>
-                                <div class="message-time">${new Date(msg.createdAt || msg.timestamp).toLocaleTimeString()}</div>
-                            </div>
-                        `).join('');
-                    } else {
-                        chatMessagesContainer.innerHTML = '<div class="empty-state">Nenhuma mensagem encontrada</div>';
-                    }
-                } catch (error) {
-                    console.error('Erro ao carregar mensagens:', error);
-                    modal.querySelector('#chatMessages').innerHTML = '<div class="empty-state">Erro ao carregar mensagens</div>';
-                }
-            }
-            
             if (modal.querySelector('#sendMessageBtn')) {
-                const sendMessage = async () => {
+                const sendMessage = () => {
                     const messageInput = modal.querySelector('#newMessage');
                     const message = messageInput.value.trim();
                     if (message) {
-                        try {
-                            await this.addOrderMessage(orderId, message);
-                            messageInput.value = '';
-                            // Recarregar o modal para mostrar a nova mensagem
-                            this.showOrderModal(orderId);
-                        } catch (error) {
-                            console.error('Erro ao enviar mensagem:', error);
-                        }
+                        this.addChatMessage(orderId, message);
+                        messageInput.value = '';
+                        // Recarregar o modal para mostrar a nova mensagem
+                        this.showOrderModal(orderId);
                     }
                 };
                 
@@ -1665,10 +1648,6 @@ class SistemaPedidos {
             .map(p => `<option value="${p.id}" data-price="${Number(p.price ?? 0)}">${p.name} - R$ ${Number(p.price ?? 0).toFixed(2)}</option>`)
             .join('');
 
-        const customerOptions = this.customers
-            .map(c => `<option value="${c.id}" data-name="${c.name}" data-phone="${c.phone}">${c.name} - ${c.phone}</option>`)
-            .join('');
-
         const modalHTML = `
             <div class="modal-header">
                 <h3>Criar Novo Pedido</h3>
@@ -1677,19 +1656,12 @@ class SistemaPedidos {
             <div class="modal-body">
                 <form id="newOrderForm">
                     <div class="form-group">
-                        <label for="customerSelect">Selecionar Cliente</label>
-                        <select id="customerSelect" required>
-                            <option value="">Selecione um cliente...</option>
-                            ${customerOptions}
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label for="customerName">Nome do Cliente</label>
-                        <input type="text" id="customerName" required readonly>
+                        <input type="text" id="customerName" required>
                     </div>
                     <div class="form-group">
                         <label for="customerPhone">Telefone do Cliente</label>
-                        <input type="tel" id="customerPhone" readonly>
+                        <input type="tel" id="customerPhone">
                     </div>
                     <div class="form-group">
                         <label for="orderType">Tipo de Pedido</label>
@@ -1722,21 +1694,6 @@ class SistemaPedidos {
             const itemsContainer = modal.querySelector('#orderItemsContainer');
             const orderTypeSelect = modal.querySelector('#orderType');
             const addressGroup = modal.querySelector('#addressGroup');
-            const customerSelect = modal.querySelector('#customerSelect');
-            const customerNameInput = modal.querySelector('#customerName');
-            const customerPhoneInput = modal.querySelector('#customerPhone');
-            
-            // Preencher dados do cliente quando selecionado
-            customerSelect.addEventListener('change', () => {
-                const selectedOption = customerSelect.options[customerSelect.selectedIndex];
-                if (selectedOption.value) {
-                    customerNameInput.value = selectedOption.dataset.name;
-                    customerPhoneInput.value = selectedOption.dataset.phone;
-                } else {
-                    customerNameInput.value = '';
-                    customerPhoneInput.value = '';
-                }
-            });
             
             // Controlar visibilidade do endereço
             orderTypeSelect.addEventListener('change', () => {
@@ -1784,14 +1741,13 @@ class SistemaPedidos {
     }
 
     saveNewOrder(modal) {
-        const customerId = modal.querySelector('#customerSelect').value;
         const customerName = modal.querySelector('#customerName').value;
         const customerPhone = modal.querySelector('#customerPhone').value;
         const orderType = modal.querySelector('#orderType').value;
         const customerAddress = modal.querySelector('#customerAddress').value;
         
-        if (!customerId) {
-            this.showToast('Selecione um cliente para o pedido.', 'error');
+        if (!customerName) {
+            this.showToast('O nome do cliente é obrigatório.', 'error');
             return;
         }
 
@@ -1816,7 +1772,6 @@ class SistemaPedidos {
         }
 
         this.createNewOrder({
-            customerId: parseInt(customerId),
             customer: customerName,
             phone: customerPhone,
             type: orderType,
@@ -2401,69 +2356,36 @@ class SistemaPedidos {
         }
     }
 
-    async addCustomerMessage(customerId, message) {
+    addCustomerMessage(customerId, message) {
         const customer = this.customers.find(c => c.id === customerId);
         if (!customer) return;
 
-        try {
-            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.CUSTOMERS.GET}/${customerId}/messages`, {
-                message: message,
-                direction: 'outbound',
-                channel: 'chat',
-                userId: this.currentUser?.id
-            });
-            
-            this.showToast('Mensagem enviada com sucesso!', 'success');
-            
-            // Log da atividade
-            this.logUserActivity('enviar_mensagem_cliente', `Mensagem enviada para cliente ${customer.name}`, {
-                customerId: customerId,
-                message: message
-            });
-            
-            return response;
-        } catch (error) {
+        const newMessage = {
+            id: Date.now(),
+            customerId: customerId,
+            direction: 'outbound',
+            channel: 'chat',
+            message: message,
+            userId: this.currentUser?.id,
+            timestamp: new Date()
+        };
+
+        // Enviar para a API
+        this.apiService.post(`${API_CONFIG.ENDPOINTS.CUSTOMERS.CREATE}/${customerId}/messages`, {
+            message: message,
+            direction: 'outbound',
+            channel: 'chat',
+            userId: this.currentUser?.id
+        }).catch(error => {
             console.error('Erro ao enviar mensagem para cliente:', error);
             this.showToast('Erro ao enviar mensagem para cliente.', 'error');
-            throw error;
-        }
-    }
+        });
 
-    async addOrderMessage(orderId, message) {
-        try {
-            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.ORDERS.LIST}/${orderId}/messages`, {
-                message: message,
-                sender: 'user',
-                userId: this.currentUser?.id
-            });
-            
-            this.showToast('Mensagem enviada com sucesso!', 'success');
-            return response;
-        } catch (error) {
-            console.error('Erro ao enviar mensagem do pedido:', error);
-            this.showToast('Erro ao enviar mensagem.', 'error');
-            throw error;
-        }
-    }
-
-    async loadOrderMessages(orderId) {
-        try {
-            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.ORDERS.LIST}/${orderId}/messages`);
-            return messages;
-        } catch (error) {
-            console.error('Erro ao carregar mensagens do pedido:', error);
-            return [];
-        }
-    }
-
-    async loadCustomerMessages(customerId) {
-        try {
-            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.CUSTOMERS.GET}/${customerId}/messages`);
-            return messages;
-        } catch (error) {
-            console.error('Erro ao carregar mensagens do cliente:', error);
-            return [];
-        }
+        // Log da atividade
+        this.logUserActivity('enviar_mensagem_cliente', `Mensagem enviada para cliente ${customer.name}`, {
+            customerId: customerId,
+            message: message
+        });
     }
 
     printOrder(orderId) {

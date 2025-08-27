@@ -33,38 +33,54 @@ const LOCAL_STORAGE_KEYS = {
     CURRENT_USER: 'pedidos_current_user'
 };
 
-// Simulação de API com localStorage
-class LocalStorageAPI {
-    constructor() {
-        this.initializeData();
+// Configuração da API Java
+const API_CONFIG = {
+    BASE_URL: 'http://localhost:8080/api',
+    ENDPOINTS: {
+        AUTH: {
+            LOGIN: '/auth/login',
+            VALIDATE: '/auth/validate',
+            LOGOUT: '/auth/logout'
+        },
+        USERS: {
+            LIST: '/users',
+            CREATE: '/users',
+            UPDATE: '/users',
+            DELETE: '/users',
+            UPDATE_PASSWORD: '/users'
+        },
+        PROFILES: {
+            LIST: '/profiles',
+            CREATE: '/profiles',
+            UPDATE: '/profiles',
+            DELETE: '/profiles'
+        },
+        PRODUCTS: {
+            LIST: '/products',
+            CREATE: '/products',
+            UPDATE: '/products',
+            DELETE: '/products',
+            TOGGLE_STATUS: '/products'
+        },
+        CUSTOMERS: {
+            LIST: '/clientes',
+            CREATE: '/clientes',
+            UPDATE: '/clientes',
+            DELETE: '/clientes'
+        },
+        ORDERS: {
+            LIST: '/orders',
+            CREATE: '/orders',
+            UPDATE: '/orders',
+            DELETE: '/orders',
+            UPDATE_STATUS: '/orders'
+        },
+        METRICS: {
+            DASHBOARD: '/metrics/dashboard',
+            REPORTS: '/metrics/reports'
+        }
     }
-
-    initializeData() {
-        // Inicializar dados se não existirem
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.CUSTOMERS)) {
-            this.seedCustomers();
-        }
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.PRODUCTS)) {
-            this.seedProducts();
-        }
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.ORDERS)) {
-            this.seedOrders();
-        }
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.PROFILES)) {
-            this.seedProfiles();
-        }
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.USERS)) {
-            this.seedUsers();
-        }
-        
-        // Inicializar arrays vazios para mensagens se não existirem
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES)) {
-            localStorage.setItem(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES, JSON.stringify([]));
-        }
-        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.ORDER_MESSAGES)) {
-            localStorage.setItem(LOCAL_STORAGE_KEYS.ORDER_MESSAGES, JSON.stringify([]));
-        }
-    }
+};
 
     // Dados de exemplo
     seedCustomers() {
@@ -232,50 +248,99 @@ class LocalStorageAPI {
 // =================================================================
 class ApiService {
     constructor() {
-        this.localAPI = new LocalStorageAPI();
-        this.token = localStorage.getItem('jwt_token');
+        this.token = localStorage.getItem('auth_token');
     }
 
     setToken(token) {
         this.token = token;
         if (token) {
-            localStorage.setItem('jwt_token', token);
+            localStorage.setItem('auth_token', token);
         } else {
-            localStorage.removeItem('jwt_token');
+            localStorage.removeItem('auth_token');
         }
     }
 
-    // Simulação de autenticação
-    async login(username, password) {
-        const users = await this.getUsers();
-        const profiles = await this.getProfiles();
+    // Métodos genéricos HTTP
+    async makeRequest(url, options = {}) {
+        const defaultOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            }
+        };
+
+        const finalOptions = { ...defaultOptions, ...options };
         
-        const user = users.find(u => u.username === username);
-        if (user && password === '123') {
-            const profile = profiles.find(p => p.id === user.profile_id);
-            const token = btoa(JSON.stringify({ userId: user.id, username: user.username }));
+        try {
+            const response = await fetch(url, finalOptions);
             
-            this.setToken(token);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
             
-            return {
-                token: token,
-                user: {
-                    ...user,
-                    permissions: profile ? profile.permissions : {}
-                }
-            };
-        } else {
-            throw new Error('Usuário ou senha inválidos');
+            return await response.json();
+        } catch (error) {
+            console.error('Erro na requisição:', error);
+            throw error;
         }
+    }
+
+    getAuthHeaders() {
+        return this.token ? { 'Authorization': `Bearer ${this.token}` } : {};
+    }
+
+    async get(url, params = {}) {
+        const queryString = new URLSearchParams(params).toString();
+        const fullUrl = queryString ? `${url}?${queryString}` : url;
+        return this.makeRequest(fullUrl, { method: 'GET' });
+    }
+
+    async post(url, data) {
+        return this.makeRequest(url, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async put(url, data) {
+        return this.makeRequest(url, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async delete(url) {
+        return this.makeRequest(url, { method: 'DELETE' });
+    }
+
+    async patch(url, data) {
+        return this.makeRequest(url, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    }
+
+    // Autenticação
+    async login(username, password) {
+        const response = await this.post(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.LOGIN}`, {
+            username: username,
+            password: password
+        });
+        
+        if (response.token) {
+            this.setToken(response.token);
+        }
+        
+        return response;
     }
 
     async validateToken() {
         if (!this.token) return false;
         
         try {
-            const tokenData = JSON.parse(atob(this.token));
-            const users = await this.getUsers();
-            return users.some(u => u.id === tokenData.userId);
+            const response = await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.VALIDATE}`);
+            return response.valid;
         } catch (error) {
             return false;
         }
@@ -283,56 +348,53 @@ class ApiService {
 
     // Métodos CRUD para clientes
     async getCustomers() {
-        return await this.localAPI.get(LOCAL_STORAGE_KEYS.CUSTOMERS);
+        return await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CUSTOMERS.LIST}`);
     }
 
     async createCustomer(customerData) {
-        return await this.localAPI.post(LOCAL_STORAGE_KEYS.CUSTOMERS, customerData);
+        return await this.post(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CUSTOMERS.CREATE}`, customerData);
     }
 
     async updateCustomer(id, customerData) {
-        return await this.localAPI.put(LOCAL_STORAGE_KEYS.CUSTOMERS, id, customerData);
+        return await this.put(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CUSTOMERS.UPDATE}/${id}`, customerData);
     }
 
     async deleteCustomer(id) {
-        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.CUSTOMERS, id);
+        return await this.delete(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CUSTOMERS.DELETE}/${id}`);
     }
 
     // Métodos CRUD para produtos
     async getProducts() {
-        return await this.localAPI.get(LOCAL_STORAGE_KEYS.PRODUCTS);
+        return await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PRODUCTS.LIST}`);
     }
 
     async createProduct(productData) {
-        return await this.localAPI.post(LOCAL_STORAGE_KEYS.PRODUCTS, productData);
+        return await this.post(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PRODUCTS.CREATE}`, productData);
     }
 
     async updateProduct(id, productData) {
-        return await this.localAPI.put(LOCAL_STORAGE_KEYS.PRODUCTS, id, productData);
+        return await this.put(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PRODUCTS.UPDATE}/${id}`, productData);
     }
 
     async deleteProduct(id) {
-        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.PRODUCTS, id);
+        return await this.delete(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PRODUCTS.DELETE}/${id}`);
     }
 
     // Métodos CRUD para pedidos
     async getOrders() {
-        return await this.localAPI.get(LOCAL_STORAGE_KEYS.ORDERS);
+        return await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ORDERS.LIST}`);
     }
 
     async createOrder(orderData) {
-        // Gerar ID único para pedido
-        const orderId = 'PED' + Date.now().toString().slice(-6);
-        const order = { ...orderData, id: orderId };
-        return await this.localAPI.post(LOCAL_STORAGE_KEYS.ORDERS, order);
+        return await this.post(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ORDERS.CREATE}`, orderData);
     }
 
     async updateOrderStatus(id, status) {
-        return await this.localAPI.put(LOCAL_STORAGE_KEYS.ORDERS, id, { status });
+        return await this.patch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ORDERS.UPDATE_STATUS}/${id}/status`, { status: status });
     }
 
     async deleteOrder(id) {
-        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.ORDERS, id);
+        return await this.delete(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ORDERS.DELETE}/${id}`);
     }
 
     // Métodos para mensagens
@@ -358,66 +420,41 @@ class ApiService {
 
     // Métodos para perfis
     async getProfiles() {
-        return await this.localAPI.get(LOCAL_STORAGE_KEYS.PROFILES);
+        return await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROFILES.LIST}`);
     }
 
     async createProfile(profileData) {
-        return await this.localAPI.post(LOCAL_STORAGE_KEYS.PROFILES, profileData);
+        return await this.post(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROFILES.CREATE}`, profileData);
     }
 
     async updateProfile(id, profileData) {
-        return await this.localAPI.put(LOCAL_STORAGE_KEYS.PROFILES, id, profileData);
+        return await this.put(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROFILES.UPDATE}/${id}`, profileData);
     }
 
     async deleteProfile(id) {
-        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.PROFILES, id);
+        return await this.delete(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROFILES.DELETE}/${id}`);
     }
 
     // Métodos para usuários
     async getUsers() {
-        return await this.localAPI.get(LOCAL_STORAGE_KEYS.USERS);
+        return await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USERS.LIST}`);
     }
 
     async createUser(userData) {
-        return await this.localAPI.post(LOCAL_STORAGE_KEYS.USERS, userData);
+        return await this.post(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USERS.CREATE}`, userData);
     }
 
     async updateUser(id, userData) {
-        return await this.localAPI.put(LOCAL_STORAGE_KEYS.USERS, id, userData);
+        return await this.put(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USERS.UPDATE}/${id}`, userData);
     }
 
     async deleteUser(id) {
-        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.USERS, id);
+        return await this.delete(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.USERS.DELETE}/${id}`);
     }
 
     // Métodos para métricas
     async getMetrics() {
-        const orders = await this.getOrders();
-        const customers = await this.getCustomers();
-        const products = await this.getProducts();
-
-        const today = new Date().toDateString();
-        const ordersToday = orders.filter(order => 
-            new Date(order.createdAt).toDateString() === today
-        );
-        
-        const revenueToday = ordersToday
-            .filter(order => order.status !== 'cancelado')
-            .reduce((sum, order) => sum + (order.total || 0), 0);
-
-        const ordersByStatus = {};
-        orders.forEach(order => {
-            ordersByStatus[order.status] = (ordersByStatus[order.status] || 0) + 1;
-        });
-
-        return {
-            ordersByStatus: Object.entries(ordersByStatus).map(([status, count]) => ({ status, count })),
-            ordersToday: ordersToday.length,
-            revenueToday: revenueToday,
-            totalCustomers: customers.length,
-            activeProducts: products.filter(p => p.active).length,
-            recentOrders: orders.slice(0, 10)
-        };
+        return await this.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.METRICS.DASHBOARD}`);
     }
 
     // Métodos HTTP compatíveis (para manter compatibilidade)

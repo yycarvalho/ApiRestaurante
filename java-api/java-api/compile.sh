@@ -20,10 +20,10 @@ if [ ! -f "lib/jackson-core-2.15.2.jar" ]; then
     curl -L -o lib/jackson-datatype-jsr310-2.15.2.jar "https://repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.15.2/jackson-datatype-jsr310-2.15.2.jar"
 fi
 
-# MySQL Connector/J
-if [ ! -f "lib/mysql-connector-j-8.4.0.jar" ]; then
-    echo "Baixando MySQL Connector/J..."
-    curl -L -o lib/mysql-connector-j-8.4.0.jar "https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.4.0/mysql-connector-j-8.4.0.jar"
+# H2 Database
+if [ ! -f "lib/h2.jar" ]; then
+    echo "Baixando H2 Database..."
+    curl -L -o lib/h2.jar "https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar"
 fi
 
 # HikariCP

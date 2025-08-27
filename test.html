@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste do Sistema</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Teste do Sistema de Pedidos</h1>
+    
+    <div class="test-section">
+        <h3>Teste de localStorage</h3>
+        <button onclick="testLocalStorage()">Testar localStorage</button>
+        <div id="localStorageResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Teste de API</h3>
+        <button onclick="testAPI()">Testar API</button>
+        <div id="apiResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Teste de Dados</h3>
+        <button onclick="testData()">Testar Dados</button>
+        <div id="dataResult"></div>
+    </div>
+
+    <script>
+        // Simular a API do sistema
+        const LOCAL_STORAGE_KEYS = {
+            CUSTOMERS: 'pedidos_customers',
+            PRODUCTS: 'pedidos_products',
+            ORDERS: 'pedidos_orders',
+            PROFILES: 'pedidos_profiles',
+            USERS: 'pedidos_users',
+            CUSTOMER_MESSAGES: 'pedidos_customer_messages',
+            ORDER_MESSAGES: 'pedidos_order_messages'
+        };
+
+        class LocalStorageAPI {
+            constructor() {
+                this.initializeData();
+            }
+
+            initializeData() {
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.CUSTOMERS)) {
+                    this.seedCustomers();
+                }
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.PRODUCTS)) {
+                    this.seedProducts();
+                }
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.ORDERS)) {
+                    this.seedOrders();
+                }
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.PROFILES)) {
+                    this.seedProfiles();
+                }
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.USERS)) {
+                    this.seedUsers();
+                }
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES)) {
+                    localStorage.setItem(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES, JSON.stringify([]));
+                }
+                if (!localStorage.getItem(LOCAL_STORAGE_KEYS.ORDER_MESSAGES)) {
+                    localStorage.setItem(LOCAL_STORAGE_KEYS.ORDER_MESSAGES, JSON.stringify([]));
+                }
+            }
+
+            seedCustomers() {
+                const customers = [
+                    { id: 1, name: 'João Silva', phone: '(11) 99999-1111', createdAt: new Date().toISOString() },
+                    { id: 2, name: 'Maria Santos', phone: '(11) 99999-2222', createdAt: new Date().toISOString() }
+                ];
+                localStorage.setItem(LOCAL_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+            }
+
+            seedProducts() {
+                const products = [
+                    { id: 1, name: 'X-Burger', price: 15.90, description: 'Hambúrguer com queijo', category: 'lanches', active: true, createdAt: new Date().toISOString() },
+                    { id: 2, name: 'Refrigerante', price: 6.50, description: 'Coca-Cola 350ml', category: 'bebidas', active: true, createdAt: new Date().toISOString() }
+                ];
+                localStorage.setItem(LOCAL_STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            }
+
+            seedOrders() {
+                const orders = [
+                    { id: 'PED001', customerId: 1, customer: 'João Silva', phone: '(11) 99999-1111', type: 'delivery', status: 'em_atendimento', total: 32.80, items: [], createdAt: new Date().toISOString() }
+                ];
+                localStorage.setItem(LOCAL_STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+            }
+
+            seedProfiles() {
+                const profiles = [
+                    { id: 1, name: 'Administrador', permissions: {}, createdAt: new Date().toISOString() }
+                ];
+                localStorage.setItem(LOCAL_STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
+            }
+
+            seedUsers() {
+                const users = [
+                    { id: 1, username: 'admin', full_name: 'Administrador', profile_id: 1, createdAt: new Date().toISOString() }
+                ];
+                localStorage.setItem(LOCAL_STORAGE_KEYS.USERS, JSON.stringify(users));
+            }
+
+            async get(key) {
+                return new Promise((resolve) => {
+                    const data = localStorage.getItem(key);
+                    resolve(data ? JSON.parse(data) : []);
+                });
+            }
+
+            async post(key, item) {
+                return new Promise(async (resolve) => {
+                    const data = await this.get(key) || [];
+                    const newItem = { ...item, id: this.generateId(), createdAt: new Date().toISOString() };
+                    data.push(newItem);
+                    localStorage.setItem(key, JSON.stringify(data));
+                    resolve(newItem);
+                });
+            }
+
+            generateId() {
+                return Date.now() + Math.random().toString(36).substr(2, 9);
+            }
+        }
+
+        const api = new LocalStorageAPI();
+
+        async function testLocalStorage() {
+            const result = document.getElementById('localStorageResult');
+            try {
+                const testData = { name: 'Teste', value: '123' };
+                localStorage.setItem('test', JSON.stringify(testData));
+                const retrieved = JSON.parse(localStorage.getItem('test'));
+                
+                if (retrieved.name === 'Teste') {
+                    result.innerHTML = '<div class="success">✅ localStorage funcionando corretamente</div>';
+                } else {
+                    result.innerHTML = '<div class="error">❌ localStorage com problema</div>';
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Erro no localStorage: ${error.message}</div>`;
+            }
+        }
+
+        async function testAPI() {
+            const result = document.getElementById('apiResult');
+            try {
+                const customers = await api.get(LOCAL_STORAGE_KEYS.CUSTOMERS);
+                const products = await api.get(LOCAL_STORAGE_KEYS.PRODUCTS);
+                const orders = await api.get(LOCAL_STORAGE_KEYS.ORDERS);
+                
+                if (customers.length > 0 && products.length > 0 && orders.length > 0) {
+                    result.innerHTML = '<div class="success">✅ API funcionando corretamente</div>';
+                } else {
+                    result.innerHTML = '<div class="error">❌ API com problema - dados não carregados</div>';
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Erro na API: ${error.message}</div>`;
+            }
+        }
+
+        async function testData() {
+            const result = document.getElementById('dataResult');
+            try {
+                const customers = await api.get(LOCAL_STORAGE_KEYS.CUSTOMERS);
+                const products = await api.get(LOCAL_STORAGE_KEYS.PRODUCTS);
+                const orders = await api.get(LOCAL_STORAGE_KEYS.ORDERS);
+                
+                const newCustomer = await api.post(LOCAL_STORAGE_KEYS.CUSTOMERS, {
+                    name: 'Cliente Teste',
+                    phone: '(11) 99999-9999'
+                });
+                
+                const updatedCustomers = await api.get(LOCAL_STORAGE_KEYS.CUSTOMERS);
+                
+                if (updatedCustomers.length > customers.length) {
+                    result.innerHTML = '<div class="success">✅ CRUD funcionando corretamente</div>';
+                } else {
+                    result.innerHTML = '<div class="error">❌ CRUD com problema</div>';
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Erro no CRUD: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

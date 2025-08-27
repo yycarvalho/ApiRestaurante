@@ -56,6 +56,14 @@ class LocalStorageAPI {
         if (!localStorage.getItem(LOCAL_STORAGE_KEYS.USERS)) {
             this.seedUsers();
         }
+        
+        // Inicializar arrays vazios para mensagens se não existirem
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES)) {
+            localStorage.setItem(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.ORDER_MESSAGES)) {
+            localStorage.setItem(LOCAL_STORAGE_KEYS.ORDER_MESSAGES, JSON.stringify([]));
+        }
     }
 
     // Dados de exemplo
@@ -182,8 +190,8 @@ class LocalStorageAPI {
     }
 
     async post(key, item) {
-        return new Promise((resolve) => {
-            const data = this.get(key) || [];
+        return new Promise(async (resolve) => {
+            const data = await this.get(key) || [];
             const newItem = { ...item, id: this.generateId(), createdAt: new Date().toISOString() };
             data.push(newItem);
             localStorage.setItem(key, JSON.stringify(data));
@@ -192,8 +200,8 @@ class LocalStorageAPI {
     }
 
     async put(key, id, updates) {
-        return new Promise((resolve) => {
-            const data = this.get(key) || [];
+        return new Promise(async (resolve) => {
+            const data = await this.get(key) || [];
             const index = data.findIndex(item => item.id == id);
             if (index !== -1) {
                 data[index] = { ...data[index], ...updates, updatedAt: new Date().toISOString() };
@@ -206,8 +214,8 @@ class LocalStorageAPI {
     }
 
     async delete(key, id) {
-        return new Promise((resolve) => {
-            const data = this.get(key) || [];
+        return new Promise(async (resolve) => {
+            const data = await this.get(key) || [];
             const filteredData = data.filter(item => item.id != id);
             localStorage.setItem(key, JSON.stringify(filteredData));
             resolve(true);
@@ -239,8 +247,8 @@ class ApiService {
 
     // Simulação de autenticação
     async login(username, password) {
-        const users = await this.localAPI.get(LOCAL_STORAGE_KEYS.USERS);
-        const profiles = await this.localAPI.get(LOCAL_STORAGE_KEYS.PROFILES);
+        const users = await this.getUsers();
+        const profiles = await this.getProfiles();
         
         const user = users.find(u => u.username === username);
         if (user && password === '123') {
@@ -266,7 +274,7 @@ class ApiService {
         
         try {
             const tokenData = JSON.parse(atob(this.token));
-            const users = await this.localAPI.get(LOCAL_STORAGE_KEYS.USERS);
+            const users = await this.getUsers();
             return users.some(u => u.id === tokenData.userId);
         } catch (error) {
             return false;
@@ -363,6 +371,23 @@ class ApiService {
 
     async deleteProfile(id) {
         return await this.localAPI.delete(LOCAL_STORAGE_KEYS.PROFILES, id);
+    }
+
+    // Métodos para usuários
+    async getUsers() {
+        return await this.localAPI.get(LOCAL_STORAGE_KEYS.USERS);
+    }
+
+    async createUser(userData) {
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.USERS, userData);
+    }
+
+    async updateUser(id, userData) {
+        return await this.localAPI.put(LOCAL_STORAGE_KEYS.USERS, id, userData);
+    }
+
+    async deleteUser(id) {
+        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.USERS, id);
     }
 
     // Métodos para métricas
@@ -531,7 +556,7 @@ class SistemaPedidos {
                     this.apiService.getMetrics(),
                     this.apiService.getProducts(),
                     this.apiService.getProfiles(),
-                    this.apiService.get(LOCAL_STORAGE_KEYS.USERS),
+                    this.apiService.getUsers(),
                     this.apiService.getCustomers()
                 ]);
 
@@ -575,7 +600,7 @@ class SistemaPedidos {
                 if (isValid) {
                     // Token válido, restaurar sessão
                     const tokenData = JSON.parse(atob(token));
-                    const users = await this.apiService.get(LOCAL_STORAGE_KEYS.USERS);
+                    const users = await this.apiService.getUsers();
                     const profiles = await this.apiService.getProfiles();
                     
                     const user = users.find(u => u.id === tokenData.userId);
@@ -647,7 +672,7 @@ class SistemaPedidos {
                 this.apiService.getProducts(),
                 this.apiService.getOrders(),
                 this.apiService.getMetrics(),
-                this.apiService.get(LOCAL_STORAGE_KEYS.USERS),
+                this.apiService.getUsers(),
                 this.apiService.getCustomers()
             ]);
 
@@ -920,6 +945,20 @@ class SistemaPedidos {
     // =================================================================
 
     renderDashboard(container) {
+        // Calcular métricas
+        const today = new Date().toDateString();
+        const ordersToday = this.orders.filter(o => {
+            const orderDate = new Date(o.createdAt).toDateString();
+            return orderDate === today && o.status !== 'cancelado';
+        }).length;
+        
+        const totalRevenue = this.orders.filter(o => o.status !== 'cancelado').reduce((sum, o) => sum + (o.total || 0), 0);
+        
+        const activeOrders = this.orders.filter(o => o.status !== 'finalizado' && o.status !== 'cancelado').length;
+        
+        const totalCustomers = this.customers.length;
+        const activeProducts = this.products.filter(p => p.active).length;
+
         container.innerHTML = `
             <div class="section-header">
                 <h2>Visão Geral</h2>
@@ -927,19 +966,23 @@ class SistemaPedidos {
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h3>Pedidos Hoje</h3>
-                    <div class="value">${this.orders.filter(o => {
-                        const today = new Date().toDateString();
-                        const orderDate = new Date(o.createdAt).toDateString();
-                        return orderDate === today && o.status !== 'cancelled';
-                    }).length}</div>
+                    <div class="value">${ordersToday}</div>
                 </div>
                 <div class="metric-card">
-                    <h3>Faturamento</h3>
-                    <div class="value">R$ ${this.orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2)}</div>
+                    <h3>Faturamento Total</h3>
+                    <div class="value">R$ ${totalRevenue.toFixed(2)}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Pedidos Ativos</h3>
-                    <div class="value">${this.orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length}</div>
+                    <div class="value">${activeOrders}</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Clientes</h3>
+                    <div class="value">${totalCustomers}</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Produtos Ativos</h3>
+                    <div class="value">${activeProducts}</div>
                 </div>
             </div>
             <div class="charts-grid">
@@ -958,40 +1001,59 @@ class SistemaPedidos {
 
     renderCharts() {
         // Gráfico de Status de Pedidos
-        const statusCtx = document.getElementById('statusChart').getContext('2d');
-        const pedidosPorStatus = this.metrics?.pedidosPorStatus || {};
-        const statusLabels = Object.keys(pedidosPorStatus).map(s => this.orderStatuses?.find(os => os.id === s)?.name || s);
-        const statusData = Object.values(pedidosPorStatus);
-        new Chart(statusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: statusLabels,
-                datasets: [{
-                    data: statusData,
-                    backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#10b981', '#6366f1', '#6b7280'],
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+        const statusCtx = document.getElementById('statusChart');
+        if (statusCtx) {
+            const statusCtx2d = statusCtx.getContext('2d');
+            
+            // Calcular pedidos por status
+            const pedidosPorStatus = {};
+            this.orders.forEach(order => {
+                pedidosPorStatus[order.status] = (pedidosPorStatus[order.status] || 0) + 1;
+            });
+            
+            const statusLabels = Object.keys(pedidosPorStatus).map(s => {
+                const status = this.orderStatuses?.find(os => os.id === s);
+                return status ? status.name : s;
+            });
+            const statusData = Object.values(pedidosPorStatus);
+            
+            new Chart(statusCtx2d, {
+                type: 'doughnut',
+                data: {
+                    labels: statusLabels,
+                    datasets: [{
+                        data: statusData,
+                        backgroundColor: ['#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#10b981', '#6366f1', '#6b7280'],
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
 
         // Gráfico de Faturamento
-        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-        const faturamentoMensal = Array.isArray(this.metrics?.faturamentoMensal) ? this.metrics.faturamentoMensal : new Array(12).fill(0);
-        new Chart(revenueCtx, {
-            type: 'line',
-            data: {
-                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago','Set','Out','Nov','Dez'],
-                datasets: [{
-                    label: 'Faturamento',
-                    data: faturamentoMensal,
-                    borderColor: '#6a5af9',
-                    backgroundColor: 'rgba(106, 90, 249, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+        const revenueCtx = document.getElementById('revenueChart');
+        if (revenueCtx) {
+            const revenueCtx2d = revenueCtx.getContext('2d');
+            
+            // Simular faturamento mensal
+            const faturamentoMensal = new Array(12).fill(0).map(() => Math.random() * 1000 + 500);
+            
+            new Chart(revenueCtx2d, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago','Set','Out','Nov','Dez'],
+                    datasets: [{
+                        label: 'Faturamento',
+                        data: faturamentoMensal,
+                        borderColor: '#6a5af9',
+                        backgroundColor: 'rgba(106, 90, 249, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
     }
 
     renderPedidos(container) {
@@ -1481,7 +1543,7 @@ class SistemaPedidos {
         
         try {
             this.showLoading();
-            const newCustomer = await this.apiService.post(API_CONFIG.ENDPOINTS.CUSTOMERS.CREATE, { name, phone });
+            const newCustomer = await this.apiService.createCustomer({ name, phone });
             
             this.showToast('Cliente criado com sucesso!', 'success');
             this.customers.push(newCustomer);
@@ -1872,9 +1934,7 @@ class SistemaPedidos {
 			const oldStatus = order ? order.status : null;
 			
 			// Atualizar status na API
-			await this.apiService.patch(`${API_CONFIG.ENDPOINTS.ORDERS.UPDATE_STATUS}/${orderId}/status`, {
-				status: newStatus
-			});
+			await this.apiService.updateOrderStatus(orderId, newStatus);
 
 			// Atualizar localmente
 			if (order) {
@@ -1882,8 +1942,8 @@ class SistemaPedidos {
 
 				// regra: se for retirada (pickup) e marcar "pronto", finaliza automaticamente
 				let autoFinalizado = false;
-				if (order.type === 'pickup' && newStatus === 'ready') {
-					order.status = 'delivered';
+				if (order.type === 'pickup' && newStatus === 'pronto') {
+					order.status = 'finalizado';
 					autoFinalizado = true;
 				}
 			}
@@ -1905,10 +1965,10 @@ class SistemaPedidos {
 			this.closeModal();
 			this.renderKanbanBoard();
 			this.showToast(
-				order && order.type === 'pickup' && newStatus === 'ready'
+				order && order.type === 'pickup' && newStatus === 'pronto'
 					? `Pedido ${orderId} finalizado automaticamente (retirada pronta).`
 					: `Status do pedido ${orderId} atualizado!`,
-				order && order.type === 'pickup' && newStatus === 'ready' ? 'info' : 'success'
+				order && order.type === 'pickup' && newStatus === 'pronto' ? 'info' : 'success'
 			);
 		} catch (error) {
 			console.error('Erro ao atualizar status do pedido:', error);
@@ -2088,7 +2148,7 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
-            const newOrder = await this.apiService.post(API_CONFIG.ENDPOINTS.ORDERS.CREATE, orderData);
+            const newOrder = await this.apiService.createOrder(orderData);
             
             // Adicionar o novo pedido ao cache local
             this.orders.unshift(newOrder);
@@ -2206,14 +2266,14 @@ class SistemaPedidos {
             let savedUser;
             if (existingUserId) {
                 // Atualizar usuário existente
-                savedUser = await this.apiService.put(`${API_CONFIG.ENDPOINTS.USERS.UPDATE}/${existingUserId}`, userData);
+                savedUser = await this.apiService.updateUser(existingUserId, userData);
                 const userIndex = this.users.findIndex(u => u.id === existingUserId);
                 if (userIndex !== -1) {
                     this.users[userIndex] = savedUser;
                 }
             } else {
                 // Criar novo usuário
-                savedUser = await this.apiService.post(API_CONFIG.ENDPOINTS.USERS.CREATE, userData);
+                savedUser = await this.apiService.createUser(userData);
                 this.users.push(savedUser);
             }
 
@@ -2248,7 +2308,7 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
-            await this.apiService.delete(`${API_CONFIG.ENDPOINTS.USERS.DELETE}/${userId}`);
+            await this.apiService.deleteUser(userId);
             
             // Remover do cache local
             this.users = this.users.filter(u => u.id !== userId);
@@ -2337,14 +2397,14 @@ class SistemaPedidos {
             let savedProfile;
             if (existingProfileId) {
                 // Atualizar perfil existente
-                savedProfile = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PROFILES.UPDATE}/${existingProfileId}`, profileData);
+                savedProfile = await this.apiService.updateProfile(existingProfileId, profileData);
                 const profileIndex = this.profiles.findIndex(p => p.id === existingProfileId);
                 if (profileIndex !== -1) {
                     this.profiles[profileIndex] = savedProfile;
                 }
             } else {
                 // Criar novo perfil
-                savedProfile = await this.apiService.post(API_CONFIG.ENDPOINTS.PROFILES.CREATE, profileData);
+                savedProfile = await this.apiService.createProfile(profileData);
                 this.profiles.push(savedProfile);
             }
 
@@ -2386,7 +2446,7 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
-            await this.apiService.delete(`${API_CONFIG.ENDPOINTS.PROFILES.DELETE}/${profileId}`);
+            await this.apiService.deleteProfile(profileId);
             
             // Remover do cache local
             this.profiles = this.profiles.filter(p => p.id !== profileId);
@@ -2566,14 +2626,14 @@ class SistemaPedidos {
             let updatedProduct;
             if (productId) {
                 // Atualizar produto existente
-                updatedProduct = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PRODUCTS.UPDATE}/${productId}`, productData);
+                updatedProduct = await this.apiService.updateProduct(productId, productData);
                 const productIndex = this.products.findIndex(p => p.id === productId);
                 if (productIndex !== -1) {
                     this.products[productIndex] = updatedProduct;
                 }
             } else {
                 // Criar novo produto
-                updatedProduct = await this.apiService.post(API_CONFIG.ENDPOINTS.PRODUCTS.CREATE, productData);
+                updatedProduct = await this.apiService.createProduct(productData);
                 this.products.push(updatedProduct);
             }
 
@@ -2599,7 +2659,7 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
-            const updatedProduct = await this.apiService.put(`${API_CONFIG.ENDPOINTS.PRODUCTS.UPDATE}/${productId}`, {
+            const updatedProduct = await this.apiService.updateProduct(productId, {
                 ...product,
                 active: !product.active
             });
@@ -2629,7 +2689,7 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
-            await this.apiService.delete(`${API_CONFIG.ENDPOINTS.PRODUCTS.DELETE}/${productId}`);
+            await this.apiService.deleteProduct(productId);
             
             // Remover do cache local
             this.products = this.products.filter(p => p.id !== productId);

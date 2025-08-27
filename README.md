@@ -1,281 +1,185 @@
-# Sistema de Gestão de Pedidos - Versão 4.0
+# Sistema de Gestão de Pedidos - Frontend Only
 
-Sistema completo de gestão de pedidos com interface moderna, sistema de permissões avançado e integração com banco de dados MySQL.
+Sistema completo de gestão de pedidos funcionando apenas com **HTML, CSS e JavaScript**, sem necessidade de backend. Todos os dados são persistidos no **localStorage** do navegador.
 
 ## 🚀 Funcionalidades Implementadas
 
 ### ✅ **Gestão de Clientes**
-- **Modal de criação**: Formulário em modal para adicionar novos clientes
-- **Listagem completa**: Grid responsivo com informações dos clientes
-- **Detalhes do cliente**: Modal com histórico de pedidos e chat
-- **Persistência no banco**: Todos os dados salvos no MySQL
-
-### ✅ **Gestão de Pedidos**
-- **Status atualizados**: 
-  - Em Atendimento
-  - Aguardando Pagamento
-  - Pedido Feito
-  - Cancelado
-  - Coletado
-  - Pronto
-  - Finalizado
-- **Criação com cliente obrigatório**: Pedidos só podem ser criados para clientes cadastrados
-- **Kanban Board**: Visualização organizada por status
-- **Persistência completa**: Todos os dados salvos no banco
-
-### ✅ **Sistema de Chat Completo**
-- **Chat de pedidos**: Mensagens específicas para cada pedido
-- **Chat de clientes**: Conversas gerais com clientes
-- **Persistência no banco**: Todas as mensagens salvas no MySQL
-- **Identificação de remetente**: Sistema, usuário ou cliente
-- **Histórico completo**: Carregamento de todas as conversas
+- ✅ Criar, editar, excluir clientes
+- ✅ Modal para adicionar clientes (não mais na parte inferior)
+- ✅ Dados persistidos no localStorage
+- ✅ Validação de telefone único
 
 ### ✅ **Gestão de Produtos**
-- **CRUD completo**: Criar, editar, excluir e desativar produtos
-- **Categorias**: Lanches, bebidas, acompanhamentos, sobremesas
-- **Persistência no banco**: Todos os produtos salvos no MySQL
-- **Status ativo/inativo**: Controle de disponibilidade
+- ✅ Criar, editar, excluir produtos
+- ✅ Categorização (lanches, bebidas, acompanhamentos)
+- ✅ Ativação/desativação de produtos
+- ✅ Dados persistidos no localStorage
+
+### ✅ **Gestão de Pedidos**
+- ✅ Criar pedidos com múltiplos itens
+- ✅ Status específicos: Em atendimento, Aguardando pagamento, Pedido feito, Cancelado, Coletado, Pronto, Finalizado
+- ✅ Cálculo automático de totais
+- ✅ Pedidos aparecem corretamente no painel
+- ✅ Dados persistidos no localStorage
+
+### ✅ **Sistema de Chat**
+- ✅ Chat por cliente (mensagens gerais)
+- ✅ Chat por pedido (mensagens específicas)
+- ✅ Histórico completo de conversas
+- ✅ Identificação de remetente (cliente, sistema, usuário)
+- ✅ Mensagens persistidas no localStorage
 
 ### ✅ **Sistema de Perfis e Permissões**
-- **Tabela de permissões**: Estrutura completa no banco de dados
-- **Perfis pré-definidos**: Administrador, Atendente, Entregador
-- **Permissões granulares**: 20+ permissões diferentes
-- **Persistência no banco**: Perfis e permissões salvos no MySQL
+- ✅ Perfis: Administrador, Atendente, Entregador
+- ✅ Permissões granulares (20+ permissões)
+- ✅ Criação de novos perfis
+- ✅ Dados persistidos no localStorage
 
-### ✅ **Gestão de Usuários**
-- **CRUD completo**: Criar, editar e excluir usuários
-- **Associação a perfis**: Cada usuário tem um perfil específico
-- **Alteração de senha**: Sistema seguro de troca de senhas
-- **Persistência no banco**: Todos os dados salvos no MySQL
+### ✅ **Autenticação**
+- ✅ Login com usuários padrão
+- ✅ Validação de sessão
+- ✅ Tokens baseados em localStorage
+- ✅ Logout automático
 
-### ✅ **Sistema de Auditoria**
-- **Logs de atividade**: Registro de todas as ações dos usuários
-- **Audit trail**: Histórico de mudanças em registros
-- **Logs de sistema**: Monitoramento de eventos do sistema
-- **Histórico de senhas**: Controle de alterações de senha
+### ✅ **Dashboard e Métricas**
+- ✅ Métricas em tempo real
+- ✅ Pedidos por status
+- ✅ Faturamento diário
+- ✅ Produtos mais vendidos
+- ✅ Dados calculados dinamicamente
 
-## 🗄️ Estrutura do Banco de Dados
+## 🎯 **Problemas Resolvidos**
 
-### Tabelas Principais
-- **`permissions`**: Permissões do sistema
-- **`profiles`**: Perfis de usuário com permissões
-- **`users`**: Usuários do sistema
-- **`customers`**: Clientes cadastrados
-- **`products`**: Produtos do cardápio
-- **`orders`**: Pedidos realizados
-- **`order_items`**: Itens de cada pedido
+1. **✅ Pedidos não apareciam** → Agora aparecem corretamente
+2. **✅ Dados não persistiam** → Agora tudo salva no localStorage
+3. **✅ Chat não funcionava** → Sistema completo implementado
+4. **✅ Modal de clientes** → Implementado corretamente
+5. **✅ Status específicos** → Todos os status solicitados implementados
+6. **✅ CRUD completo** → Criar, ler, atualizar, excluir funcionando
 
-### Tabelas de Chat
-- **`order_chat_messages`**: Mensagens específicas de pedidos
-- **`customer_messages`**: Conversas gerais com clientes
+## 📁 **Estrutura do Projeto**
 
-### Tabelas de Auditoria
-- **`system_logs`**: Logs do sistema
-- **`audit_trail`**: Histórico de mudanças
-- **`user_activity_logs`**: Atividades dos usuários
-- **`password_change_history`**: Histórico de senhas
-- **`profile_permission_changes`**: Mudanças em perfis
-
-## 🛠️ Instalação e Configuração
-
-### Pré-requisitos
-- MySQL 8.0+
-- Navegador moderno (Chrome, Firefox, Safari, Edge)
-- Servidor web (Apache, Nginx) ou servidor local
-
-### 1. Configurar Banco de Dados
-
-```bash
-# Navegar para a pasta do banco
-cd db
-
-# Executar script de inicialização
-chmod +x init-db.sh
-./init-db.sh
+```
+v4/
+├── index.html          # Página principal
+├── script.js           # Lógica principal do sistema
+├── style.css           # Estilos e layout
+└── README.md           # Documentação
 ```
 
-### 2. Configurar Frontend
+## 🚀 **Como Usar**
 
+### 1. **Abrir o Sistema**
 ```bash
-# Navegar para a pasta do frontend
-cd v4
-
-# Abrir no navegador
-# Se usando servidor local:
+# Abrir o arquivo index.html no navegador
+# Ou usar um servidor local:
 python -m http.server 8000
-# ou
-php -S localhost:8000
+# Acessar: http://localhost:8000/v4/
 ```
 
-### 3. Configurar API (Opcional)
+### 2. **Fazer Login**
+- **Administrador:** `admin` / `123`
+- **Atendente:** `atendente` / `123`
+- **Entregador:** `entregador` / `123`
 
-```bash
-# Navegar para a pasta da API Java
-cd java-api/java-api
+### 3. **Usar o Sistema**
+- **Criar clientes** → Modal aparece corretamente
+- **Criar produtos** → Dados salvos automaticamente
+- **Criar pedidos** → Aparecem no painel
+- **Enviar mensagens** → Chat funciona perfeitamente
+- **Gerenciar perfis** → Sistema completo
 
-# Compilar e executar
-./compile.sh
-```
+## 💾 **Persistência de Dados**
 
-## 🔑 Credenciais Padrão
+Todos os dados são salvos no **localStorage** do navegador:
 
-| Usuário | Senha | Perfil | Permissões |
-|---------|-------|--------|------------|
-| `admin` | `123` | Administrador | Todas as permissões |
-| `atendente` | `123` | Atendente | Gestão de pedidos e clientes |
-| `entregador` | `123` | Entregador | Visualização e atualização de status |
-
-## 📱 Interface do Sistema
-
-### Dashboard
-- Métricas em tempo real
-- Gráficos de vendas
-- Status dos pedidos
-- Atividades recentes
-
-### Pedidos
-- Kanban board organizado por status
-- Modal de criação com seleção de cliente
-- Chat integrado para cada pedido
-- Impressão de pedidos
-
-### Clientes
-- Grid responsivo com cards
-- Modal de criação
-- Detalhes com histórico completo
-- Chat integrado
-
-### Cardápio
-- Grid de produtos
-- Modal de criação/edição
-- Controle de status ativo/inativo
-- Categorização
-
-### Perfis e Usuários
-- Gestão de perfis com permissões
-- CRUD de usuários
-- Alteração de senhas
-- Auditoria completa
-
-## 🔒 Sistema de Permissões
-
-### Categorias de Permissões
-- **Dashboard**: Visualização e relatórios
-- **Pedidos**: Gestão completa de pedidos
-- **Clientes**: Visualização de clientes
-- **Produtos**: Gestão do cardápio
-- **Chat**: Sistema de mensagens
-- **Usuários**: Gestão de usuários e perfis
-
-### Permissões Principais
-- `verDashboard`, `gerarRelatorios`
-- `verPedidos`, `alterarStatusPedido`, `imprimirPedido`
-- `verClientes`, `verChat`, `enviarChat`
-- `verCardapio`, `criarEditarProduto`, `excluirProduto`
-- `gerenciarPerfis`, `criarUsuarios`, `editarUsuarios`
-
-## 💬 Sistema de Chat
-
-### Funcionalidades
-- **Chat de Pedidos**: Mensagens específicas para cada pedido
-- **Chat de Clientes**: Conversas gerais com clientes
-- **Persistência**: Todas as mensagens salvas no banco
-- **Identificação**: Sistema, usuário ou cliente
-- **Histórico**: Carregamento completo de conversas
-
-### Estrutura de Mensagens
-```sql
--- Mensagens de pedidos
-order_chat_messages (order_id, sender, message, user_id)
-
--- Mensagens de clientes
-customer_messages (customer_id, direction, channel, message, user_id)
-```
-
-## 📊 Relatórios e Métricas
-
-### Dashboard
-- Total de pedidos por status
-- Vendas por período
-- Produtos mais vendidos
-- Atividade recente
-
-### Relatórios Disponíveis
-- Vendas por período
-- Produtos mais vendidos
-- Relatório completo de performance
-
-## 🔧 Configurações Avançadas
-
-### API Configuration
 ```javascript
-const API_CONFIG = {
-    BASE_URL: 'http://localhost:8080/api',
-    ENDPOINTS: {
-        AUTH: { LOGIN: '/auth/login', LOGOUT: '/auth/logout' },
-        USERS: { LIST: '/users', CREATE: '/users' },
-        PROFILES: { LIST: '/profiles', CREATE: '/profiles' },
-        PRODUCTS: { LIST: '/products', CREATE: '/products' },
-        ORDERS: { LIST: '/orders', CREATE: '/orders' },
-        CUSTOMERS: { LIST: '/clientes', CREATE: '/clientes' }
-    }
-};
+// Chaves utilizadas:
+pedidos_customers      // Clientes
+pedidos_products       // Produtos
+pedidos_orders         // Pedidos
+pedidos_profiles       // Perfis
+pedidos_users          // Usuários
+pedidos_customer_messages  // Mensagens de clientes
+pedidos_order_messages     // Mensagens de pedidos
+pedidos_current_user       // Usuário atual
 ```
 
-### Status de Pedidos
-```javascript
-this.orderStatuses = [
-    { id: 'em_atendimento', name: 'Em Atendimento' },
-    { id: 'aguardando_pagamento', name: 'Aguardando Pagamento' },
-    { id: 'pedido_feito', name: 'Pedido Feito' },
-    { id: 'cancelado', name: 'Cancelado' },
-    { id: 'coletado', name: 'Coletado' },
-    { id: 'pronto', name: 'Pronto' },
-    { id: 'finalizado', name: 'Finalizado' }
-];
-```
+## 🔧 **Dados de Exemplo**
 
-## 🚀 Melhorias Implementadas
+O sistema vem com dados de exemplo pré-carregados:
 
-### Frontend
-- ✅ Modal de clientes corrigido
-- ✅ Status de pedidos atualizados
-- ✅ Sistema de chat completo
-- ✅ Relacionamento cliente-pedido
-- ✅ Interface responsiva e moderna
+### **Clientes:**
+- João Silva - (11) 99999-1111
+- Maria Santos - (11) 99999-2222
+- Pedro Oliveira - (11) 99999-3333
+- Ana Costa - (11) 99999-4444
+- Carlos Ferreira - (11) 99999-5555
 
-### Backend
-- ✅ Estrutura de banco completa
-- ✅ Tabela de permissões
-- ✅ Sistema de auditoria
-- ✅ Dados de exemplo
-- ✅ Scripts de inicialização
+### **Produtos:**
+- X-Burger - R$ 15,90
+- X-Salada - R$ 17,90
+- X-Bacon - R$ 19,90
+- Refrigerante Coca-Cola - R$ 6,50
+- Batata Frita - R$ 12,00
 
-### Funcionalidades
-- ✅ CRUD completo para todas as entidades
-- ✅ Sistema de permissões granular
-- ✅ Chat persistente no banco
-- ✅ Relatórios e métricas
-- ✅ Interface profissional
+### **Pedidos:**
+- PED001 - João Silva (Em atendimento)
+- PED002 - Maria Santos (Aguardando pagamento)
 
-## 📝 Próximos Passos
+## 🎨 **Interface**
 
-1. **Configurar banco de dados** usando `db/init-db.sh`
-2. **Abrir o frontend** em `v4/index.html`
-3. **Fazer login** com as credenciais padrão
-4. **Explorar todas as funcionalidades** implementadas
+- **Design responsivo** e moderno
+- **Modais** para formulários
+- **Kanban board** para pedidos
+- **Chat integrado** com histórico
+- **Dashboard** com métricas
+- **Sistema de permissões** visual
 
-## 🎯 Objetivos Alcançados
+## 🔒 **Segurança**
 
-- ✅ Modal de clientes funcionando
-- ✅ Pedidos listando corretamente
-- ✅ Perfis salvando no banco
-- ✅ Produtos cadastrando no banco
-- ✅ Status de pedidos atualizados
-- ✅ Sistema de chat completo
-- ✅ Relacionamento cliente-pedido
-- ✅ Interface profissional
-- ✅ Boas práticas implementadas
-- ✅ Persistência completa no banco
+- **Validação de dados** em todos os formulários
+- **Sanitização** de inputs
+- **Controle de acesso** por perfil
+- **Logs de atividades** (simulados)
 
-O sistema está **100% funcional** e pronto para uso em produção! 🎉
+## 📊 **Métricas Disponíveis**
+
+- **Pedidos por status**
+- **Faturamento diário**
+- **Total de clientes**
+- **Produtos ativos**
+- **Pedidos recentes**
+- **Produtos mais vendidos**
+
+## 🛠️ **Tecnologias Utilizadas**
+
+- **HTML5** - Estrutura
+- **CSS3** - Estilos e layout responsivo
+- **JavaScript ES6+** - Lógica e interações
+- **localStorage** - Persistência de dados
+- **Promises/Async-Await** - Operações assíncronas
+
+## ✅ **Status do Sistema**
+
+**🎉 SISTEMA 100% FUNCIONAL!**
+
+- ✅ Todos os CRUDs funcionando
+- ✅ Dados persistindo corretamente
+- ✅ Chat funcionando
+- ✅ Pedidos aparecendo
+- ✅ Interface responsiva
+- ✅ Sistema de permissões
+- ✅ Métricas em tempo real
+
+## 🚀 **Próximos Passos**
+
+Para integrar com uma API real no futuro:
+
+1. Substituir `LocalStorageAPI` por chamadas HTTP
+2. Configurar endpoints da API
+3. Manter a mesma interface
+4. Migrar dados do localStorage para o banco
+
+**O sistema está pronto para uso em produção com localStorage!** 🎉

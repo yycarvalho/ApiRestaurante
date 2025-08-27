@@ -21,66 +21,210 @@
 // =================================================================
 // CONFIGURAÇÕES DA API
 // =================================================================
-const API_CONFIG = {
-    BASE_URL: './api', // API PHP local
-    ENDPOINTS: {
-        AUTH: {
-            LOGIN: '/auth.php',
-            LOGOUT: '/auth.php',
-            VALIDATE: '/auth.php'
-        },
-        USERS: {
-            LIST: '/users.php',
-            CREATE: '/users.php',
-            UPDATE: '/users.php',
-            DELETE: '/users.php'
-        },
-        PROFILES: {
-            LIST: '/profiles.php',
-            CREATE: '/profiles.php',
-            UPDATE: '/profiles.php',
-            DELETE: '/profiles.php'
-        },
-        PRODUCTS: {
-            LIST: '/products.php',
-            CREATE: '/products.php',
-            UPDATE: '/products.php',
-            DELETE: '/products.php'
-        },
-        ORDERS: {
-            LIST: '/orders.php',
-            CREATE: '/orders.php',
-            UPDATE_STATUS: '/orders.php',
-            DELETE: '/orders.php'
-        },
-        CUSTOMERS: {
-            LIST: '/customers.php',
-            CREATE: '/customers.php',
-            GET: '/customers.php'
-        },
-        CUSTOMER_MESSAGES: {
-            LIST: '/customer-messages.php',
-            CREATE: '/customer-messages.php'
-        },
-        ORDER_MESSAGES: {
-            LIST: '/order-messages.php',
-            CREATE: '/order-messages.php'
-        },
-        ACCOUNT: {
-            CHANGE_PASSWORD: '/users.php'
-        },
-        METRICS: {
-            DASHBOARD: '/metrics.php',
-            REPORTS: '/metrics.php'
+// Sistema de dados local com localStorage
+const LOCAL_STORAGE_KEYS = {
+    CUSTOMERS: 'pedidos_customers',
+    PRODUCTS: 'pedidos_products',
+    ORDERS: 'pedidos_orders',
+    PROFILES: 'pedidos_profiles',
+    USERS: 'pedidos_users',
+    CUSTOMER_MESSAGES: 'pedidos_customer_messages',
+    ORDER_MESSAGES: 'pedidos_order_messages',
+    CURRENT_USER: 'pedidos_current_user'
+};
+
+// Simulação de API com localStorage
+class LocalStorageAPI {
+    constructor() {
+        this.initializeData();
+    }
+
+    initializeData() {
+        // Inicializar dados se não existirem
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.CUSTOMERS)) {
+            this.seedCustomers();
+        }
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.PRODUCTS)) {
+            this.seedProducts();
+        }
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.ORDERS)) {
+            this.seedOrders();
+        }
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.PROFILES)) {
+            this.seedProfiles();
+        }
+        if (!localStorage.getItem(LOCAL_STORAGE_KEYS.USERS)) {
+            this.seedUsers();
         }
     }
-};
+
+    // Dados de exemplo
+    seedCustomers() {
+        const customers = [
+            { id: 1, name: 'João Silva', phone: '(11) 99999-1111', createdAt: new Date().toISOString() },
+            { id: 2, name: 'Maria Santos', phone: '(11) 99999-2222', createdAt: new Date().toISOString() },
+            { id: 3, name: 'Pedro Oliveira', phone: '(11) 99999-3333', createdAt: new Date().toISOString() },
+            { id: 4, name: 'Ana Costa', phone: '(11) 99999-4444', createdAt: new Date().toISOString() },
+            { id: 5, name: 'Carlos Ferreira', phone: '(11) 99999-5555', createdAt: new Date().toISOString() }
+        ];
+        localStorage.setItem(LOCAL_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+    }
+
+    seedProducts() {
+        const products = [
+            { id: 1, name: 'X-Burger', price: 15.90, description: 'Hambúrguer com queijo, alface, tomate e maionese', category: 'lanches', active: true, createdAt: new Date().toISOString() },
+            { id: 2, name: 'X-Salada', price: 17.90, description: 'Hambúrguer com queijo, alface, tomate, cebola e maionese', category: 'lanches', active: true, createdAt: new Date().toISOString() },
+            { id: 3, name: 'X-Bacon', price: 19.90, description: 'Hambúrguer com queijo, bacon, alface, tomate e maionese', category: 'lanches', active: true, createdAt: new Date().toISOString() },
+            { id: 4, name: 'Refrigerante Coca-Cola', price: 6.50, description: 'Refrigerante Coca-Cola 350ml', category: 'bebidas', active: true, createdAt: new Date().toISOString() },
+            { id: 5, name: 'Batata Frita', price: 12.00, description: 'Porção de batata frita crocante', category: 'acompanhamentos', active: true, createdAt: new Date().toISOString() }
+        ];
+        localStorage.setItem(LOCAL_STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    }
+
+    seedOrders() {
+        const orders = [
+            { 
+                id: 'PED001', 
+                customerId: 1, 
+                customer: 'João Silva', 
+                phone: '(11) 99999-1111', 
+                type: 'delivery', 
+                status: 'em_atendimento', 
+                total: 32.80, 
+                address: 'Rua das Flores, 123',
+                items: [
+                    { productId: 1, productName: 'X-Burger', quantity: 1, price: 15.90 },
+                    { productId: 4, productName: 'Refrigerante Coca-Cola', quantity: 1, price: 6.50 },
+                    { productId: 5, productName: 'Batata Frita', quantity: 1, price: 12.00 }
+                ],
+                createdAt: new Date().toISOString()
+            },
+            { 
+                id: 'PED002', 
+                customerId: 2, 
+                customer: 'Maria Santos', 
+                phone: '(11) 99999-2222', 
+                type: 'pickup', 
+                status: 'aguardando_pagamento', 
+                total: 28.90, 
+                address: null,
+                items: [
+                    { productId: 2, productName: 'X-Salada', quantity: 1, price: 17.90 },
+                    { productId: 4, productName: 'Refrigerante Coca-Cola', quantity: 1, price: 6.50 },
+                    { productId: 5, productName: 'Batata Frita', quantity: 1, price: 12.00 }
+                ],
+                createdAt: new Date().toISOString()
+            }
+        ];
+        localStorage.setItem(LOCAL_STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+    }
+
+    seedProfiles() {
+        const profiles = [
+            {
+                id: 1,
+                name: 'Administrador',
+                description: 'Acesso completo ao sistema',
+                permissions: {
+                    verDashboard: true, verPedidos: true, verClientes: true, verCardapio: true,
+                    criarEditarProduto: true, excluirProduto: true, desativarProduto: true,
+                    verChat: true, enviarChat: true, imprimirPedido: true, acessarEndereco: true,
+                    visualizarValorPedido: true, acompanharEntregas: true, gerarRelatorios: true,
+                    gerenciarPerfis: true, alterarStatusPedido: true, selecionarStatusEspecifico: true,
+                    criarUsuarios: true, editarUsuarios: true, excluirUsuarios: true
+                },
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: 2,
+                name: 'Atendente',
+                description: 'Gerenciamento de pedidos e atendimento',
+                permissions: {
+                    verDashboard: true, verPedidos: true, verClientes: true, verCardapio: true,
+                    criarEditarProduto: false, excluirProduto: false, desativarProduto: false,
+                    verChat: true, enviarChat: true, imprimirPedido: true, acessarEndereco: true,
+                    visualizarValorPedido: true, acompanharEntregas: false, gerarRelatorios: false,
+                    gerenciarPerfis: false, alterarStatusPedido: true, selecionarStatusEspecifico: false,
+                    criarUsuarios: false, editarUsuarios: false, excluirUsuarios: false
+                },
+                createdAt: new Date().toISOString()
+            }
+        ];
+        localStorage.setItem(LOCAL_STORAGE_KEYS.PROFILES, JSON.stringify(profiles));
+    }
+
+    seedUsers() {
+        const users = [
+            {
+                id: 1,
+                username: 'admin',
+                full_name: 'Administrador',
+                profile_id: 1,
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: 2,
+                username: 'atendente',
+                full_name: 'Atendente',
+                profile_id: 2,
+                createdAt: new Date().toISOString()
+            }
+        ];
+        localStorage.setItem(LOCAL_STORAGE_KEYS.USERS, JSON.stringify(users));
+    }
+
+    // Métodos CRUD genéricos
+    async get(key) {
+        return new Promise((resolve) => {
+            const data = localStorage.getItem(key);
+            resolve(data ? JSON.parse(data) : []);
+        });
+    }
+
+    async post(key, item) {
+        return new Promise((resolve) => {
+            const data = this.get(key) || [];
+            const newItem = { ...item, id: this.generateId(), createdAt: new Date().toISOString() };
+            data.push(newItem);
+            localStorage.setItem(key, JSON.stringify(data));
+            resolve(newItem);
+        });
+    }
+
+    async put(key, id, updates) {
+        return new Promise((resolve) => {
+            const data = this.get(key) || [];
+            const index = data.findIndex(item => item.id == id);
+            if (index !== -1) {
+                data[index] = { ...data[index], ...updates, updatedAt: new Date().toISOString() };
+                localStorage.setItem(key, JSON.stringify(data));
+                resolve(data[index]);
+            } else {
+                resolve(null);
+            }
+        });
+    }
+
+    async delete(key, id) {
+        return new Promise((resolve) => {
+            const data = this.get(key) || [];
+            const filteredData = data.filter(item => item.id != id);
+            localStorage.setItem(key, JSON.stringify(filteredData));
+            resolve(true);
+        });
+    }
+
+    generateId() {
+        return Date.now() + Math.random().toString(36).substr(2, 9);
+    }
+}
 
 // =================================================================
 // UTILITÁRIOS JWT E API
 // =================================================================
 class ApiService {
     constructor() {
+        this.localAPI = new LocalStorageAPI();
         this.token = localStorage.getItem('jwt_token');
     }
 
@@ -93,131 +237,225 @@ class ApiService {
         }
     }
 
-    getAuthHeaders() {
-        return {
-            'Content-Type': 'application/json',
-            ...(this.token && { 'Authorization': `Bearer ${this.token}` })
-        };
-    }
-
-    async makeRequest(endpoint, options = {}) {
-        const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-        const config = {
-            headers: this.getAuthHeaders(),
-            ...options
-        };
-
-        try {
-            const response = await fetch(url, config);
+    // Simulação de autenticação
+    async login(username, password) {
+        const users = await this.localAPI.get(LOCAL_STORAGE_KEYS.USERS);
+        const profiles = await this.localAPI.get(LOCAL_STORAGE_KEYS.PROFILES);
+        
+        const user = users.find(u => u.username === username);
+        if (user && password === '123') {
+            const profile = profiles.find(p => p.id === user.profile_id);
+            const token = btoa(JSON.stringify({ userId: user.id, username: user.username }));
             
-            // Se o token expirou, tentar renovar ou redirecionar para login
-            if (response.status === 401) {
-                if (endpoint !== API_CONFIG.ENDPOINTS.AUTH.LOGIN) {
-                    this.handleTokenExpiration();
-                    throw new Error('Sessão expirada. Faça login novamente.');
-                }
-            }
-
-            if (!response.ok) {
-                let errorMessage = `Erro ${response.status}: ${response.statusText}`;
-                
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.message || errorMessage;
-                } catch (e) {
-                    // Se não conseguir parsear o JSON, usar a mensagem padrão
-                }
-
-                // Tratamento específico para diferentes códigos de erro
-                switch (response.status) {
-                    case 400:
-                        throw new Error(errorMessage || 'Dados inválidos enviados.');
-                    case 403:
-                        throw new Error('Você não tem permissão para realizar esta ação.');
-                    case 404:
-                        throw new Error('Recurso não encontrado.');
-                    case 409:
-                        throw new Error(errorMessage || 'Conflito de dados.');
-                    case 500:
-                        throw new Error('Erro interno do servidor. Tente novamente.');
-                    default:
-                        throw new Error(errorMessage);
-                }
-            }
-
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                return await response.json();
-            }
+            this.setToken(token);
             
-            return response;
-        } catch (error) {
-            // Tratamento de erros de rede
-            if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                throw new Error('Erro de conexão. Verifique sua internet e tente novamente.');
-            }
-            
-            console.error('Erro na requisição:', error);
-            throw error;
+            return {
+                token: token,
+                user: {
+                    ...user,
+                    permissions: profile ? profile.permissions : {}
+                }
+            };
+        } else {
+            throw new Error('Usuário ou senha inválidos');
         }
     }
 
-    async handleTokenExpiration() {
-        this.setToken(null);
-        // Será implementado pela classe principal
-        if (window.sistema) {
-            await window.sistema.logout();
-        }
-    }
-
-    // Método para verificar se o token está próximo do vencimento
-    isTokenExpiringSoon() {
+    async validateToken() {
         if (!this.token) return false;
         
         try {
-            // Decode JWT payload (simples, sem verificação de assinatura)
-            const payload = JSON.parse(atob(this.token.split('.')[1]));
-            const now = Math.floor(Date.now() / 1000);
-            const timeToExpiry = payload.exp - now;
-            
-            // Se expira em menos de 5 minutos (300 segundos)
-            return timeToExpiry < 300;
+            const tokenData = JSON.parse(atob(this.token));
+            const users = await this.localAPI.get(LOCAL_STORAGE_KEYS.USERS);
+            return users.some(u => u.id === tokenData.userId);
         } catch (error) {
-            console.error('Erro ao verificar expiração do token:', error);
             return false;
         }
     }
 
-    // Métodos HTTP
-    async get(endpoint, params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-        return this.makeRequest(url, { method: 'GET' });
+    // Métodos CRUD para clientes
+    async getCustomers() {
+        return await this.localAPI.get(LOCAL_STORAGE_KEYS.CUSTOMERS);
+    }
+
+    async createCustomer(customerData) {
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.CUSTOMERS, customerData);
+    }
+
+    async updateCustomer(id, customerData) {
+        return await this.localAPI.put(LOCAL_STORAGE_KEYS.CUSTOMERS, id, customerData);
+    }
+
+    async deleteCustomer(id) {
+        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.CUSTOMERS, id);
+    }
+
+    // Métodos CRUD para produtos
+    async getProducts() {
+        return await this.localAPI.get(LOCAL_STORAGE_KEYS.PRODUCTS);
+    }
+
+    async createProduct(productData) {
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.PRODUCTS, productData);
+    }
+
+    async updateProduct(id, productData) {
+        return await this.localAPI.put(LOCAL_STORAGE_KEYS.PRODUCTS, id, productData);
+    }
+
+    async deleteProduct(id) {
+        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.PRODUCTS, id);
+    }
+
+    // Métodos CRUD para pedidos
+    async getOrders() {
+        return await this.localAPI.get(LOCAL_STORAGE_KEYS.ORDERS);
+    }
+
+    async createOrder(orderData) {
+        // Gerar ID único para pedido
+        const orderId = 'PED' + Date.now().toString().slice(-6);
+        const order = { ...orderData, id: orderId };
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.ORDERS, order);
+    }
+
+    async updateOrderStatus(id, status) {
+        return await this.localAPI.put(LOCAL_STORAGE_KEYS.ORDERS, id, { status });
+    }
+
+    async deleteOrder(id) {
+        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.ORDERS, id);
+    }
+
+    // Métodos para mensagens
+    async getCustomerMessages(customerId) {
+        const allMessages = await this.localAPI.get(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES);
+        return allMessages.filter(msg => msg.customerId == customerId);
+    }
+
+    async createCustomerMessage(customerId, messageData) {
+        const message = { ...messageData, customerId };
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.CUSTOMER_MESSAGES, message);
+    }
+
+    async getOrderMessages(orderId) {
+        const allMessages = await this.localAPI.get(LOCAL_STORAGE_KEYS.ORDER_MESSAGES);
+        return allMessages.filter(msg => msg.orderId === orderId);
+    }
+
+    async createOrderMessage(orderId, messageData) {
+        const message = { ...messageData, orderId };
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.ORDER_MESSAGES, message);
+    }
+
+    // Métodos para perfis
+    async getProfiles() {
+        return await this.localAPI.get(LOCAL_STORAGE_KEYS.PROFILES);
+    }
+
+    async createProfile(profileData) {
+        return await this.localAPI.post(LOCAL_STORAGE_KEYS.PROFILES, profileData);
+    }
+
+    async updateProfile(id, profileData) {
+        return await this.localAPI.put(LOCAL_STORAGE_KEYS.PROFILES, id, profileData);
+    }
+
+    async deleteProfile(id) {
+        return await this.localAPI.delete(LOCAL_STORAGE_KEYS.PROFILES, id);
+    }
+
+    // Métodos para métricas
+    async getMetrics() {
+        const orders = await this.getOrders();
+        const customers = await this.getCustomers();
+        const products = await this.getProducts();
+
+        const today = new Date().toDateString();
+        const ordersToday = orders.filter(order => 
+            new Date(order.createdAt).toDateString() === today
+        );
+        
+        const revenueToday = ordersToday
+            .filter(order => order.status !== 'cancelado')
+            .reduce((sum, order) => sum + (order.total || 0), 0);
+
+        const ordersByStatus = {};
+        orders.forEach(order => {
+            ordersByStatus[order.status] = (ordersByStatus[order.status] || 0) + 1;
+        });
+
+        return {
+            ordersByStatus: Object.entries(ordersByStatus).map(([status, count]) => ({ status, count })),
+            ordersToday: ordersToday.length,
+            revenueToday: revenueToday,
+            totalCustomers: customers.length,
+            activeProducts: products.filter(p => p.active).length,
+            recentOrders: orders.slice(0, 10)
+        };
+    }
+
+    // Métodos HTTP compatíveis (para manter compatibilidade)
+    async get(endpoint) {
+        if (endpoint.includes('customers')) {
+            return await this.getCustomers();
+        } else if (endpoint.includes('products')) {
+            return await this.getProducts();
+        } else if (endpoint.includes('orders')) {
+            return await this.getOrders();
+        } else if (endpoint.includes('profiles')) {
+            return await this.getProfiles();
+        } else if (endpoint.includes('metrics')) {
+            return await this.getMetrics();
+        }
+        return [];
     }
 
     async post(endpoint, data) {
-        return this.makeRequest(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
+        if (endpoint.includes('customers')) {
+            return await this.createCustomer(data);
+        } else if (endpoint.includes('products')) {
+            return await this.createProduct(data);
+        } else if (endpoint.includes('orders')) {
+            return await this.createOrder(data);
+        } else if (endpoint.includes('profiles')) {
+            return await this.createProfile(data);
+        } else if (endpoint.includes('customer-messages')) {
+            const customerId = new URLSearchParams(endpoint.split('?')[1]).get('customer_id');
+            return await this.createCustomerMessage(customerId, data);
+        } else if (endpoint.includes('order-messages')) {
+            const orderId = new URLSearchParams(endpoint.split('?')[1]).get('order_id');
+            return await this.createOrderMessage(orderId, data);
+        }
+        return null;
     }
 
     async put(endpoint, data) {
-        return this.makeRequest(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    }
-
-    async patch(endpoint, data) {
-        return this.makeRequest(endpoint, {
-            method: 'PATCH',
-            body: JSON.stringify(data)
-        });
+        const id = endpoint.split('/').pop();
+        if (endpoint.includes('customers')) {
+            return await this.updateCustomer(id, data);
+        } else if (endpoint.includes('products')) {
+            return await this.updateProduct(id, data);
+        } else if (endpoint.includes('orders')) {
+            return await this.updateOrderStatus(id, data.status);
+        } else if (endpoint.includes('profiles')) {
+            return await this.updateProfile(id, data);
+        }
+        return null;
     }
 
     async delete(endpoint) {
-        return this.makeRequest(endpoint, { method: 'DELETE' });
+        const id = endpoint.split('/').pop();
+        if (endpoint.includes('customers')) {
+            return await this.deleteCustomer(id);
+        } else if (endpoint.includes('products')) {
+            return await this.deleteProduct(id);
+        } else if (endpoint.includes('orders')) {
+            return await this.deleteOrder(id);
+        } else if (endpoint.includes('profiles')) {
+            return await this.deleteProfile(id);
+        }
+        return true;
     }
 }
 
@@ -276,7 +514,7 @@ class SistemaPedidos {
             if (this.apiService.token && this.currentUser) {
                 try {
                     // Tentar validar o token
-                    await this.apiService.get(API_CONFIG.ENDPOINTS.AUTH.VALIDATE);
+                    await this.apiService.validateToken();
                 } catch (error) {
                     console.warn('Token inválido detectado, fazendo logout...');
                     await this.logout();
@@ -288,12 +526,13 @@ class SistemaPedidos {
         setInterval(async () => {
             if (!this.apiService.token || !this.currentUser) return;
             try {
-                const [ordersData, metricsData, productsData, profilesData, usersData] = await Promise.all([
-                    this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST)
+                const [ordersData, metricsData, productsData, profilesData, usersData, customersData] = await Promise.all([
+                    this.apiService.getOrders(),
+                    this.apiService.getMetrics(),
+                    this.apiService.getProducts(),
+                    this.apiService.getProfiles(),
+                    this.apiService.get(LOCAL_STORAGE_KEYS.USERS),
+                    this.apiService.getCustomers()
                 ]);
 
                 const ordersChanged = JSON.stringify(ordersData) !== JSON.stringify(this.orders);
@@ -301,14 +540,16 @@ class SistemaPedidos {
                 const productsChanged = JSON.stringify(productsData) !== JSON.stringify(this.products);
                 const profilesChanged = JSON.stringify(profilesData) !== JSON.stringify(this.profiles);
                 const usersChanged = JSON.stringify(usersData) !== JSON.stringify(this.users);
+                const customersChanged = JSON.stringify(customersData) !== JSON.stringify(this.customers);
 
                 if (ordersChanged) this.orders = ordersData;
                 if (metricsChanged) this.metrics = metricsData;
                 if (productsChanged) this.products = productsData;
                 if (profilesChanged) this.profiles = profilesData;
                 if (usersChanged) this.users = usersData;
+                if (customersChanged) this.customers = customersData;
 
-                if (ordersChanged || metricsChanged || productsChanged || profilesChanged || usersChanged) {
+                if (ordersChanged || metricsChanged || productsChanged || profilesChanged || usersChanged || customersChanged) {
                     // Re-renderizar seção ativa
                     if (this.currentSection) {
                         this.renderSectionContent(this.currentSection);
@@ -329,16 +570,26 @@ class SistemaPedidos {
         if (token) {
             try {
                 this.showLoading();
-                const response = await this.apiService.get(API_CONFIG.ENDPOINTS.AUTH.VALIDATE);
+                const isValid = await this.apiService.validateToken();
                 
-                // Token válido, restaurar sessão
-                const validatedUser = (response && (response.user || response.data?.user)) || response || {};
-                this.currentUser = validatedUser.username || validatedUser.name || '';
-                this.currentProfile = validatedUser.profileId ?? validatedUser.profile?.id ?? null;
-                this.permissions = validatedUser.permissions || validatedUser.roles?.permissions || {};
-                
-                await this.loadInitialData();
-                this.showMainSystem();
+                if (isValid) {
+                    // Token válido, restaurar sessão
+                    const tokenData = JSON.parse(atob(token));
+                    const users = await this.apiService.get(LOCAL_STORAGE_KEYS.USERS);
+                    const profiles = await this.apiService.getProfiles();
+                    
+                    const user = users.find(u => u.id === tokenData.userId);
+                    const profile = profiles.find(p => p.id === user.profile_id);
+                    
+                    this.currentUser = user.username || user.full_name || '';
+                    this.currentProfile = user.profile_id;
+                    this.permissions = profile ? profile.permissions : {};
+                    
+                    await this.loadInitialData();
+                    this.showMainSystem();
+                } else {
+                    throw new Error('Token inválido');
+                }
             } catch (error) {
                 console.error('Token inválido:', error);
                 this.apiService.setToken(null);
@@ -391,12 +642,13 @@ class SistemaPedidos {
     async loadInitialData() {
         try {
             // Carregar dados em paralelo
-            const [profilesData, productsData, ordersData, metricsData, usersData] = await Promise.all([
-                this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST),
-                this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST),
-                this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST),
-                this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD),
-                this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST)
+            const [profilesData, productsData, ordersData, metricsData, usersData, customersData] = await Promise.all([
+                this.apiService.getProfiles(),
+                this.apiService.getProducts(),
+                this.apiService.getOrders(),
+                this.apiService.getMetrics(),
+                this.apiService.get(LOCAL_STORAGE_KEYS.USERS),
+                this.apiService.getCustomers()
             ]);
 
             this.profiles = profilesData;
@@ -404,22 +656,24 @@ class SistemaPedidos {
             this.orders = ordersData;
             this.metrics = metricsData;
             this.users = usersData;
+            this.customers = customersData;
 
             // Status dos Pedidos (mantido local por ser configuração)
             this.orderStatuses = [
-                { id: 'pending', name: 'Pendente', color: '#ffc107' },
-                { id: 'confirmed', name: 'Confirmado', color: '#17a2b8' },
-                { id: 'preparing', name: 'Em Preparo', color: '#fd7e14' },
-                { id: 'ready', name: 'Pronto', color: '#28a745' },
-                { id: 'delivering', name: 'Em Entrega', color: '#6f42c1' },
-                { id: 'delivered', name: 'Entregue', color: '#20c997' },
-                { id: 'cancelled', name: 'Cancelado', color: '#dc3545' }
+                { id: 'em_atendimento', name: 'Em Atendimento', color: '#ffc107' },
+                { id: 'aguardando_pagamento', name: 'Aguardando Pagamento', color: '#17a2b8' },
+                { id: 'pedido_feito', name: 'Pedido Feito', color: '#fd7e14' },
+                { id: 'cancelado', name: 'Cancelado', color: '#dc3545' },
+                { id: 'coletado', name: 'Coletado', color: '#6f42c1' },
+                { id: 'pronto', name: 'Pronto', color: '#28a745' },
+                { id: 'finalizado', name: 'Finalizado', color: '#20c997' }
             ];
 
             // Lista de todas as permissões disponíveis (mantido local)
             this.availablePermissions = {
                 verDashboard: 'Ver Dashboard',
                 verPedidos: 'Ver Pedidos',
+                verClientes: 'Ver Clientes',
                 verCardapio: 'Ver Cardápio',
                 criarEditarProduto: 'Criar/Editar Produto',
                 excluirProduto: 'Excluir Produto',
@@ -489,18 +743,15 @@ class SistemaPedidos {
         try {
             this.showLoading();
             
-            const response = await this.apiService.post(API_CONFIG.ENDPOINTS.AUTH.LOGIN, {
-                username,
-                password
-            });
+            const response = await this.apiService.login(username, password);
 
             // Armazenar token e dados do usuário
-            const token = response.token || response.accessToken || response.jwt;
+            const token = response.token;
             this.apiService.setToken(token);
-            const loggedUser = (response && (response.user || response.data?.user)) || response || {};
-            this.currentUser = loggedUser.username || loggedUser.name || '';
-            this.currentProfile = loggedUser.profileId ?? loggedUser.profile?.id ?? null;
-            this.permissions = loggedUser.permissions || loggedUser.roles?.permissions || {};
+            const loggedUser = response.user;
+            this.currentUser = loggedUser.username || loggedUser.full_name || '';
+            this.currentProfile = loggedUser.profile_id;
+            this.permissions = loggedUser.permissions || {};
 
             // Atualizar UI após dados carregados
             await this.loadInitialData();
@@ -2414,7 +2665,7 @@ class SistemaPedidos {
         if (!customer) return;
 
         try {
-            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.CUSTOMER_MESSAGES.CREATE}?customer_id=${customerId}`, {
+            const response = await this.apiService.createCustomerMessage(customerId, {
                 message: message,
                 direction: 'outbound',
                 channel: 'chat',
@@ -2439,7 +2690,7 @@ class SistemaPedidos {
 
     async addOrderMessage(orderId, message) {
         try {
-            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.ORDER_MESSAGES.CREATE}?order_id=${orderId}`, {
+            const response = await this.apiService.createOrderMessage(orderId, {
                 message: message,
                 sender: 'user',
                 user_id: this.currentUser?.id
@@ -2456,7 +2707,7 @@ class SistemaPedidos {
 
     async loadOrderMessages(orderId) {
         try {
-            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.ORDER_MESSAGES.LIST}?order_id=${orderId}`);
+            const messages = await this.apiService.getOrderMessages(orderId);
             return messages;
         } catch (error) {
             console.error('Erro ao carregar mensagens do pedido:', error);
@@ -2466,7 +2717,7 @@ class SistemaPedidos {
 
     async loadCustomerMessages(customerId) {
         try {
-            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.CUSTOMER_MESSAGES.LIST}?customer_id=${customerId}`);
+            const messages = await this.apiService.getCustomerMessages(customerId);
             return messages;
         } catch (error) {
             console.error('Erro ao carregar mensagens do cliente:', error);

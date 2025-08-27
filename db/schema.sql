@@ -6,6 +6,15 @@ SET FOREIGN_KEY_CHECKS=0;
 CREATE DATABASE IF NOT EXISTS pedidos CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE pedidos;
 
+-- Permissions table
+CREATE TABLE IF NOT EXISTS permissions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  description VARCHAR(255),
+  category VARCHAR(50) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- Profiles
 CREATE TABLE IF NOT EXISTS profiles (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -60,7 +69,7 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_phone VARCHAR(30) NOT NULL,
   address VARCHAR(255),
   type VARCHAR(30) NOT NULL,
-  status VARCHAR(30) NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'em_atendimento',
   total DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -191,6 +200,41 @@ CREATE TABLE IF NOT EXISTS profile_permission_changes (
 
 SET FOREIGN_KEY_CHECKS=1;
 
+-- Insert permissions
+INSERT INTO permissions (name, description, category) VALUES
+-- Dashboard permissions
+('verDashboard', 'Ver Dashboard', 'dashboard'),
+('gerarRelatorios', 'Gerar Relatórios', 'dashboard'),
+
+-- Orders permissions
+('verPedidos', 'Ver Pedidos', 'orders'),
+('alterarStatusPedido', 'Alterar Status de Pedidos', 'orders'),
+('selecionarStatusEspecifico', 'Selecionar Status Específico', 'orders'),
+('imprimirPedido', 'Imprimir Pedidos', 'orders'),
+('acompanharEntregas', 'Acompanhar Entregas', 'orders'),
+('visualizarValorPedido', 'Visualizar Valores', 'orders'),
+('acessarEndereco', 'Acessar Endereços', 'orders'),
+
+-- Customers permissions
+('verClientes', 'Ver Clientes', 'customers'),
+
+-- Products permissions
+('verCardapio', 'Ver Cardápio', 'products'),
+('criarEditarProduto', 'Criar/Editar Produtos', 'products'),
+('excluirProduto', 'Excluir Produtos', 'products'),
+('desativarProduto', 'Desativar Produtos', 'products'),
+
+-- Chat permissions
+('verChat', 'Ver Chat', 'chat'),
+('enviarChat', 'Enviar Mensagens', 'chat'),
+
+-- Users and profiles permissions
+('gerenciarPerfis', 'Gerenciar Perfis', 'users'),
+('criarUsuarios', 'Criar Usuários', 'users'),
+('editarUsuarios', 'Editar Usuários', 'users'),
+('excluirUsuarios', 'Excluir Usuários', 'users')
+ON DUPLICATE KEY UPDATE name = name;
+
 -- Seed data minimal
 INSERT INTO profiles (name, description, permissions, default_username)
 VALUES
@@ -222,6 +266,7 @@ VALUES
     'verClientes', true,
     'alterarStatusPedido', true,
     'verChat', true,
+    'enviarChat', true,
     'imprimirPedido', true,
     'visualizarValorPedido', true,
     'acessarEndereco', true,
@@ -230,7 +275,11 @@ VALUES
     'excluirProduto', false,
     'desativarProduto', false,
     'gerarRelatorios', false,
-    'gerenciarPerfis', false
+    'gerenciarPerfis', false,
+    'selecionarStatusEspecifico', false,
+    'criarUsuarios', false,
+    'editarUsuarios', false,
+    'excluirUsuarios', false
   ), 'atendente'),
   ('Entregador', 'Visualização e atualização de status de entrega', JSON_OBJECT(
     'verDashboard', false,
@@ -238,6 +287,7 @@ VALUES
     'verClientes', false,
     'alterarStatusPedido', true,
     'verChat', false,
+    'enviarChat', false,
     'imprimirPedido', false,
     'visualizarValorPedido', false,
     'acessarEndereco', true,
@@ -246,7 +296,11 @@ VALUES
     'excluirProduto', false,
     'desativarProduto', false,
     'gerarRelatorios', false,
-    'gerenciarPerfis', false
+    'gerenciarPerfis', false,
+    'selecionarStatusEspecifico', false,
+    'criarUsuarios', false,
+    'editarUsuarios', false,
+    'excluirUsuarios', false
   ), 'entregador')
 ON DUPLICATE KEY UPDATE name = name;
 

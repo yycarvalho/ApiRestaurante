@@ -22,48 +22,56 @@
 // CONFIGURAÇÕES DA API
 // =================================================================
 const API_CONFIG = {
-    BASE_URL: 'http://localhost:8080/api', // Altere aqui para o endereço da sua API
+    BASE_URL: './api', // API PHP local
     ENDPOINTS: {
         AUTH: {
-            LOGIN: '/auth/login',
-            LOGOUT: '/auth/logout',
-            VALIDATE: '/auth/validate'
+            LOGIN: '/auth.php',
+            LOGOUT: '/auth.php',
+            VALIDATE: '/auth.php'
         },
         USERS: {
-            LIST: '/users',
-            CREATE: '/users',
-            UPDATE: '/users',
-            DELETE: '/users'
+            LIST: '/users.php',
+            CREATE: '/users.php',
+            UPDATE: '/users.php',
+            DELETE: '/users.php'
         },
         PROFILES: {
-            LIST: '/profiles',
-            CREATE: '/profiles',
-            UPDATE: '/profiles',
-            DELETE: '/profiles'
+            LIST: '/profiles.php',
+            CREATE: '/profiles.php',
+            UPDATE: '/profiles.php',
+            DELETE: '/profiles.php'
         },
         PRODUCTS: {
-            LIST: '/products',
-            CREATE: '/products',
-            UPDATE: '/products',
-            DELETE: '/products'
+            LIST: '/products.php',
+            CREATE: '/products.php',
+            UPDATE: '/products.php',
+            DELETE: '/products.php'
         },
         ORDERS: {
-            LIST: '/orders',
-            CREATE: '/orders',
-            UPDATE_STATUS: '/orders',
-            DELETE: '/orders'
+            LIST: '/orders.php',
+            CREATE: '/orders.php',
+            UPDATE_STATUS: '/orders.php',
+            DELETE: '/orders.php'
         },
         CUSTOMERS: {
-            LIST: '/clientes',
-            CREATE: '/clientes',
-            GET: '/clientes'
+            LIST: '/customers.php',
+            CREATE: '/customers.php',
+            GET: '/customers.php'
+        },
+        CUSTOMER_MESSAGES: {
+            LIST: '/customer-messages.php',
+            CREATE: '/customer-messages.php'
+        },
+        ORDER_MESSAGES: {
+            LIST: '/order-messages.php',
+            CREATE: '/order-messages.php'
         },
         ACCOUNT: {
-            CHANGE_PASSWORD: '/users' // usar /users/{id}/password via PATCH
+            CHANGE_PASSWORD: '/users.php'
         },
         METRICS: {
-            DASHBOARD: '/metrics/dashboard',
-            REPORTS: '/metrics/reports'
+            DASHBOARD: '/metrics.php',
+            REPORTS: '/metrics.php'
         }
     }
 };
@@ -2406,11 +2414,11 @@ class SistemaPedidos {
         if (!customer) return;
 
         try {
-            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.CUSTOMERS.GET}/${customerId}/messages`, {
+            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.CUSTOMER_MESSAGES.CREATE}?customer_id=${customerId}`, {
                 message: message,
                 direction: 'outbound',
                 channel: 'chat',
-                userId: this.currentUser?.id
+                user_id: this.currentUser?.id
             });
             
             this.showToast('Mensagem enviada com sucesso!', 'success');
@@ -2431,10 +2439,10 @@ class SistemaPedidos {
 
     async addOrderMessage(orderId, message) {
         try {
-            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.ORDERS.LIST}/${orderId}/messages`, {
+            const response = await this.apiService.post(`${API_CONFIG.ENDPOINTS.ORDER_MESSAGES.CREATE}?order_id=${orderId}`, {
                 message: message,
                 sender: 'user',
-                userId: this.currentUser?.id
+                user_id: this.currentUser?.id
             });
             
             this.showToast('Mensagem enviada com sucesso!', 'success');
@@ -2448,7 +2456,7 @@ class SistemaPedidos {
 
     async loadOrderMessages(orderId) {
         try {
-            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.ORDERS.LIST}/${orderId}/messages`);
+            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.ORDER_MESSAGES.LIST}?order_id=${orderId}`);
             return messages;
         } catch (error) {
             console.error('Erro ao carregar mensagens do pedido:', error);
@@ -2458,7 +2466,7 @@ class SistemaPedidos {
 
     async loadCustomerMessages(customerId) {
         try {
-            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.CUSTOMERS.GET}/${customerId}/messages`);
+            const messages = await this.apiService.get(`${API_CONFIG.ENDPOINTS.CUSTOMER_MESSAGES.LIST}?customer_id=${customerId}`);
             return messages;
         } catch (error) {
             console.error('Erro ao carregar mensagens do cliente:', error);

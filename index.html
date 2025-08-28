@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de Gestão de Pedidos - Plataforma completa para gerenciamento de pedidos, cardápio e entregas">
+    <meta name="keywords" content="gestão de pedidos, sistema de pedidos, cardápio, entregas">
+    <meta name="author" content="Sistema de Pedidos">
+    
+    <title>Sistema de Gestão de Pedidos</title>
+    
+    <!-- Preconnect para otimização de performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    
+    <!-- Fontes e ícones -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Estilos -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <!-- Tela de Login -->
+    <section id="loginScreen" class="login-screen" aria-label="Tela de autenticação">
+        <div class="login-container">
+            <header class="login-header">
+                <i class="fas fa-utensils" aria-hidden="true"></i>
+                <h1>Bem-vindo ao Sistema</h1>
+                <p>Faça login para continuar</p>
+            </header>
+            
+            <form id="loginForm" class="login-form" novalidate>
+                <div class="form-group">
+                    <label for="username">Usuário</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username"
+                        placeholder="Digite seu usuário" 
+                        required 
+                        autocomplete="username"
+                        aria-describedby="username-error"
+                    >
+                    <span id="username-error" class="error-message" role="alert" aria-live="polite"></span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Senha</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password"
+                        placeholder="Digite sua senha" 
+                        required 
+                        autocomplete="current-password"
+                        aria-describedby="password-error"
+                    >
+                    <span id="password-error" class="error-message" role="alert" aria-live="polite"></span>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block" aria-describedby="login-status">
+                    <span class="btn-text">Entrar</span>
+                    <span class="btn-loading hidden" aria-hidden="true">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Entrando...
+                    </span>
+                </button>
+                
+                <div id="login-status" class="login-status" role="status" aria-live="polite"></div>
+            </form>
+            
+            <div id="loginProfiles" class="login-profiles">
+                <p>Ou acesse rapidamente como:</p>
+                <div class="profile-quick-access" role="group" aria-label="Acesso rápido por perfil">
+                    <!-- Perfis de acesso rápido serão inseridos aqui via JavaScript -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sistema Principal -->
+    <div id="mainSystem" class="main-system hidden" role="application" aria-label="Sistema de gestão de pedidos">
+        <!-- Header -->
+        <header class="header" role="banner">
+            <div class="header-left">
+                <h1 id="sectionTitle">Dashboard</h1>
+            </div>
+            
+            <div class="header-right">
+                <div class="search-bar" role="search">
+                    <label for="searchInput" class="sr-only">Buscar pedidos</label>
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input 
+                        type="search" 
+                        placeholder="Buscar pedidos..." 
+                        id="searchInput"
+                        aria-label="Campo de busca de pedidos"
+                    >
+                </div>
+                
+                <div class="user-info" aria-label="Informações do usuário">
+                    <span id="currentUser" class="user-name">Usuário</span>
+                    <span id="currentProfile" class="user-profile">Perfil</span>
+                </div>
+                
+                <button class="logout-btn" id="logoutBtn" title="Sair do sistema" aria-label="Sair">
+                    <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Sidebar (Desktop) -->
+        <aside class="sidebar" role="navigation" aria-label="Menu principal">
+            <div class="sidebar-header">
+                <i class="fas fa-utensils" aria-hidden="true"></i>
+                <span>Sistema de Pedidos</span>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-section="dashboard" role="menuitem" aria-current="page">
+                    <i class="fas fa-chart-pie" aria-hidden="true"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-section="pedidos" role="menuitem">
+                    <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                    <span>Pedidos</span>
+                </a>
+                <a href="#" class="nav-item" data-section="cardapio" role="menuitem">
+                    <i class="fas fa-book-open" aria-hidden="true"></i>
+                    <span>Cardápio</span>
+                </a>
+                <a href="#" class="nav-item" data-section="relatorios" role="menuitem">
+                    <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                    <span>Relatórios</span>
+                </a>
+                <a href="#" class="nav-item" data-section="perfis" role="menuitem">
+                    <i class="fas fa-users-cog" aria-hidden="true"></i>
+                    <span>Perfis</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <main class="main-content" role="main">
+            <!-- Seções de conteúdo -->
+            <section id="dashboardSection" class="content-section active" aria-label="Dashboard">
+                <!-- Conteúdo do dashboard será carregado via JavaScript -->
+            </section>
+            
+            <section id="pedidosSection" class="content-section" aria-label="Gerenciamento de pedidos">
+                <!-- Conteúdo de pedidos será carregado via JavaScript -->
+            </section>
+            
+            <section id="cardapioSection" class="content-section" aria-label="Gerenciamento do cardápio">
+                <!-- Conteúdo do cardápio será carregado via JavaScript -->
+            </section>
+            
+            <section id="relatoriosSection" class="content-section" aria-label="Relatórios e análises">
+                <!-- Conteúdo de relatórios será carregado via JavaScript -->
+            </section>
+            
+            <section id="perfisSection" class="content-section" aria-label="Gerenciamento de perfis">
+                <!-- Conteúdo de perfis será carregado via JavaScript -->
+            </section>
+        </main>
+
+        <!-- Bottom Nav (Mobile) -->
+        <nav class="bottom-nav" role="navigation" aria-label="Menu mobile">
+            <a href="#" class="nav-item active" data-section="dashboard" role="menuitem" aria-current="page">
+                <i class="fas fa-chart-pie" aria-hidden="true"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" data-section="pedidos" role="menuitem">
+                <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                <span>Pedidos</span>
+            </a>
+            <a href="#" class="nav-item" data-section="cardapio" role="menuitem">
+                <i class="fas fa-book-open" aria-hidden="true"></i>
+                <span>Cardápio</span>
+            </a>
+            <a href="#" class="nav-item" data-section="relatorios" role="menuitem">
+                <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                <span>Relatórios</span>
+            </a>
+            <a href="#" class="nav-item" data-section="perfis" role="menuitem">
+                <i class="fas fa-users-cog" aria-hidden="true"></i>
+                <span>Perfis</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Container para Modais -->
+    <div id="modalContainer" role="dialog" aria-hidden="true"></div>
+
+    <!-- Loading Global -->
+    <div id="loading" class="loading hidden" role="status" aria-label="Carregando">
+        <div class="spinner" aria-hidden="true"></div>
+        <span class="sr-only">Carregando...</span>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container" role="region" aria-label="Notificações" aria-live="polite"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/pedidos.js"></script>
+    <script src="js/cardapio.js"></script>
+    <script src="js/relatorios.js"></script>
+    <script src="js/perfis.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

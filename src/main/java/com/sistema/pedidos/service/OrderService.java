@@ -1,160 +1,130 @@
 package com.sistema.pedidos.service;
 
+import com.sistema.pedidos.dao.OrdersDao;
+import com.sistema.pedidos.config.DatabaseConfig;
 import com.sistema.pedidos.model.Order;
 import com.sistema.pedidos.model.Order.OrderItem;
 import com.sistema.pedidos.model.Order.ChatMessage;
 import com.sistema.pedidos.model.Product;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Serviço de gerenciamento de pedidos
+ * Serviço de gerenciamento de pedidos - Refatorado para usar DAO
  */
 public class OrderService {
     
-    private final Map<String, Order> orders = new HashMap<>();
+    private final OrdersDao ordersDao;
     private final ProductService productService;
-    private int orderCounter = 1;
 
     public OrderService(ProductService productService) {
         this.productService = productService;
-        initializeDefaultOrders();
+        this.ordersDao = new OrdersDao(DatabaseConfig.getDataSource());
     }
 
     /**
-     * Inicializa pedidos padrão para demonstração
+     * Busca pedidos com paginação e filtros
      */
-    private void initializeDefaultOrders() {
-        // Pedido 1 - Em atendimento
-        createSampleOrder("João Silva", "(11) 99999-1234", "delivery", "atendimento",
-                "Rua das Flores, 123 - Centro", Arrays.asList(
-                        new OrderItem(1L, "X-Burger Clássico", 2, new BigDecimal("15.90")),
-                        new OrderItem(5L, "Coca-Cola 350ml", 2, new BigDecimal("4.50"))
-                ));
-
-        // Pedido 2 - Em preparo
-        createSampleOrder("Maria Santos", "(11) 99999-5678", "pickup", "preparo",
-                null, Arrays.asList(
-                        new OrderItem(2L, "X-Bacon", 1, new BigDecimal("18.90")),
-                        new OrderItem(9L, "Batata Frita", 1, new BigDecimal("8.90"))
-                ));
-
-        // Pedido 3 - Pronto
-        createSampleOrder("Pedro Costa", "(11) 99999-9012", "delivery", "pronto",
-                "Av. Principal, 456 - Jardim", Arrays.asList(
-                        new OrderItem(3L, "X-Tudo", 1, new BigDecimal("22.90")),
-                        new OrderItem(6L, "Guaraná Antarctica 350ml", 1, new BigDecimal("4.50")),
-                        new OrderItem(12L, "Milkshake de Chocolate", 1, new BigDecimal("8.90"))
-                ));
-
-        // Pedido 4 - Finalizado
-        createSampleOrder("Ana Oliveira", "(11) 99999-3456", "pickup", "finalizado",
-                null, Arrays.asList(
-                        new OrderItem(4L, "X-Frango", 1, new BigDecimal("16.90")),
-                        new OrderItem(8L, "Água Mineral 500ml", 1, new BigDecimal("3.00"))
-                ));
-    }
-
-    /**
-     * Método auxiliar para criar pedidos de exemplo
-     */
-    private void createSampleOrder(String customer, String phone, String type, String status,
-                                 String address, List<OrderItem> items) {
-        Order order = new Order(customer, phone, type);
-        order.setId(generateOrderId());
-        order.setStatus(status);
-        order.setAddress(address);
-        order.setItems(items);
-        order.calculateTotal();
-        
-        // Adicionar algumas mensagens de chat para demonstração
-        List<ChatMessage> chat = new ArrayList<>();
-        if ("atendimento".equals(status)) {
-            chat.add(new ChatMessage("Olá! Gostaria de fazer um pedido", "customer", 
-                    LocalDateTime.now().minusMinutes(5)));
-            chat.add(new ChatMessage("Olá! Claro, qual seria o seu pedido?", "system", 
-                    LocalDateTime.now().minusMinutes(4)));
+    public Map<String, Object> findOrders(LocalDate start, LocalDate end, String status, int page, int size) {
+        try {
+            long totalItems = ordersDao.countOrders(start, end, status);
+            List<Order> orders = ordersDao.findOrders(start, end, status, page, size);
+            
+            int totalPages = (int) Math.ceil((double) totalItems / size);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("data", orders);
+            
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("totalItems", totalItems);
+            meta.put("totalPages", totalPages);
+            meta.put("page", page);
+            meta.put("size", size);
+            result.put("meta", meta);
+            
+            return result;
+            
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao buscar pedidos: " + e.getMessage(), e);
         }
-        order.setChat(chat);
-        
-        orders.put(order.getId(), order);
     }
 
     /**
-     * Gera um ID único para o pedido
-     */
-    private String generateOrderId() {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        return timestamp + String.format("%04d", orderCounter++);
-    }
-
-    /**
-     * Busca todos os pedidos
+     * Busca todos os pedidos (mantido para compatibilidade)
      */
     public List<Order> findAll() {
-        return new ArrayList<>(orders.values());
+        LocalDate today = LocalDate.now();
+        LocalDate thirtyDaysAgo = today.minusDays(30);
+        
+        try {
+            return ordersDao.findOrders(thirtyDaysAgo, today, null, 1, 1000);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao buscar pedidos: " + e.getMessage(), e);
+        }
     }
 
     /**
      * Busca pedido por ID
      */
     public Order findById(String id) {
-        return orders.get(id);
+        try {
+            return ordersDao.findById(id);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao buscar pedido: " + e.getMessage(), e);
+        }
     }
 
     /**
-     * Busca pedidos por status
+     * Busca pedidos por status (agora usa DAO)
      */
     public List<Order> findByStatus(String status) {
-        return orders.values().stream()
-                .filter(order -> order.getStatus().equals(status))
-                .collect(Collectors.toList());
+        LocalDate today = LocalDate.now();
+        LocalDate thirtyDaysAgo = today.minusDays(30);
+        
+        try {
+            return ordersDao.findOrders(thirtyDaysAgo, today, status, 1, 1000);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao buscar pedidos por status: " + e.getMessage(), e);
+        }
     }
 
     /**
-     * Busca pedidos por tipo
+     * Busca pedidos por período (agora usa DAO)
      */
-    public List<Order> findByType(String type) {
-        return orders.values().stream()
-                .filter(order -> order.getType().equals(type))
-                .collect(Collectors.toList());
+    public List<Order> findByDateRange(LocalDate startDate, LocalDate endDate) {
+        try {
+            return ordersDao.findOrders(startDate, endDate, null, 1, 1000);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao buscar pedidos por período: " + e.getMessage(), e);
+        }
     }
-
+    
     /**
-     * Busca pedidos por cliente
-     */
-    public List<Order> findByCustomer(String customer) {
-        return orders.values().stream()
-                .filter(order -> order.getCustomer().toLowerCase().contains(customer.toLowerCase()))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Busca pedidos por período
+     * Busca pedidos por período (compatibilidade com LocalDateTime)
      */
     public List<Order> findByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return orders.values().stream()
-                .filter(order -> order.getCreatedAt().isAfter(startDate) && 
-                               order.getCreatedAt().isBefore(endDate))
-                .collect(Collectors.toList());
+        LocalDate startLocalDate = startDate.toLocalDate();
+        LocalDate endLocalDate = endDate.toLocalDate();
+        return findByDateRange(startLocalDate, endLocalDate);
     }
 
     /**
-     * Cria um novo pedido
+     * Cria um novo pedido (agora usa DAO)
      */
     public Order create(Order order) {
         // Validar dados
         validateOrder(order);
 
-        // Gerar ID
-        order.setId(generateOrderId());
+        // Configurar pedido
         order.setCreatedAt(LocalDateTime.now());
         order.setUpdatedAt(LocalDateTime.now());
-        order.setStatus("atendimento");
+        order.setStatus("em_atendimento");
 
         // Validar e calcular itens
         if (order.getItems() != null) {
@@ -167,8 +137,12 @@ public class OrderService {
             order.setChat(new ArrayList<>());
         }
 
-        orders.put(order.getId(), order);
-        return order;
+        try {
+            String orderId = ordersDao.createOrder(order);
+            return ordersDao.findById(orderId);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao criar pedido: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -257,12 +231,15 @@ public class OrderService {
         }
 
         // Só permitir exclusão de pedidos em atendimento
-        if (!"atendimento".equals(order.getStatus())) {
+        if (!"em_atendimento".equals(order.getStatus())) {
             throw new IllegalArgumentException("Só é possível excluir pedidos em atendimento");
         }
 
-        orders.remove(id);
-        return true;
+        try {
+            return ordersDao.deleteOrder(id);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao excluir pedido: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -324,7 +301,7 @@ public class OrderService {
      * Obtém status disponíveis
      */
     public List<String> getAvailableStatuses() {
-        return Arrays.asList("atendimento", "pagamento", "feito", "preparo", "pronto", "coletado", "finalizado");
+        return Arrays.asList("em_atendimento", "aguardando_pagamento", "pedido_feito", "cancelado", "coletado", "pronto", "finalizado");
     }
 
     /**
@@ -335,30 +312,17 @@ public class OrderService {
     }
 
     /**
-     * Busca pedidos com filtros
+     * Busca pedidos com filtros (removido - usar findOrders do DAO)
      */
+    @Deprecated
     public List<Order> findWithFilters(String customer, String status, String type, 
-                                     LocalDateTime startDate, LocalDateTime endDate) {
-        return orders.values().stream()
-                .filter(order -> {
-                    if (customer != null && !order.getCustomer().toLowerCase().contains(customer.toLowerCase())) {
-                        return false;
-                    }
-                    if (status != null && !order.getStatus().equals(status)) {
-                        return false;
-                    }
-                    if (type != null && !order.getType().equals(type)) {
-                        return false;
-                    }
-                    if (startDate != null && order.getCreatedAt().isBefore(startDate)) {
-                        return false;
-                    }
-                    if (endDate != null && order.getCreatedAt().isAfter(endDate)) {
-                        return false;
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
+                                     LocalDate startDate, LocalDate endDate) {
+        // Este método foi deprecado - usar findOrders() com paginação
+        try {
+            return ordersDao.findOrders(startDate, endDate, status, 1, 1000);
+        } catch (SQLException e) {
+            throw new RuntimeException("Erro ao buscar pedidos com filtros: " + e.getMessage(), e);
+        }
     }
 
     /**

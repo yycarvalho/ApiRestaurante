@@ -37,13 +37,13 @@ public class AppConfig {
     public static final int LOG_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     public static final int LOG_FILE_COUNT = 5;
     
-    // Configurações de banco de dados (para futuras implementações)
+    // Configurações de banco de dados MySQL
     public static final String DB_URL = System.getenv("DB_URL") != null ? 
-        System.getenv("DB_URL") : "jdbc:h2:./data/pedidos_db";
+        System.getenv("DB_URL") : "jdbc:mysql://localhost:3306/sistema_pedidos?useSSL=false&serverTimezone=UTC";
     public static final String DB_USER = System.getenv("DB_USER") != null ? 
-        System.getenv("DB_USER") : "admin";
+        System.getenv("DB_USER") : "root";
     public static final String DB_PASSWORD = System.getenv("DB_PASSWORD") != null ? 
-        System.getenv("DB_PASSWORD") : "admin123";
+        System.getenv("DB_PASSWORD") : "";
     
     /**
      * Inicializa o sistema de logging

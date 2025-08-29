@@ -9,6 +9,7 @@ import java.util.List;
  */
 public class Order {
     private String id;
+    private Integer customerId;
     private String customer;
     private String phone;
     private String address;
@@ -41,6 +42,14 @@ public class Order {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public Integer getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(Integer customerId) {
+        this.customerId = customerId;
     }
 
     public String getCustomer() {
@@ -205,6 +214,23 @@ public class Order {
 
         public void setPrice(BigDecimal price) {
             this.price = price;
+        }
+        
+        // Aliases para compatibilidade com DAO
+        public BigDecimal getUnitPrice() {
+            return this.price;
+        }
+        
+        public void setUnitPrice(BigDecimal unitPrice) {
+            this.price = unitPrice;
+        }
+        
+        public BigDecimal getTotalPrice() {
+            return this.price != null ? this.price.multiply(BigDecimal.valueOf(this.quantity)) : BigDecimal.ZERO;
+        }
+        
+        public void setTotalPrice(BigDecimal totalPrice) {
+            // Não faz nada - totalPrice é calculado
         }
 
         @Override

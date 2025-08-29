@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão de Pedidos - v4.0</title>
+    
+    <!-- Fontes e ícones -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Estilos -->
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-container">
+                <div class="header-left">
+                    <h1 id="sectionTitle">Pedidos</h1>
+                </div>
+                
+                <div class="header-right">
+                    <div class="user-menu">
+                        <span id="userName">Usuário</span>
+                        <button id="logoutBtn" class="btn btn-sm btn-outline">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Sair
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Conteúdo Principal -->
+        <main class="main-panel">
+            <!-- Filtros -->
+            <section class="filters-container">
+                <div class="filter-group">
+                    <label for="start-date">Data Inicial</label>
+                    <input type="date" id="start-date" />
+                </div>
+                
+                <div class="filter-group">
+                    <label for="end-date">Data Final</label>
+                    <input type="date" id="end-date" />
+                </div>
+                
+                <div class="filter-group">
+                    <label for="status-filter">Status</label>
+                    <select id="status-filter">
+                        <option value="">Todos os status</option>
+                        <option value="em_atendimento">Em Atendimento</option>
+                        <option value="aguardando_pagamento">Aguardando Pagamento</option>
+                        <option value="pedido_feito">Pedido Feito</option>
+                        <option value="pronto">Pronto</option>
+                        <option value="finalizado">Finalizado</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <button id="menu-pedidos" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i>
+                        Atualizar
+                    </button>
+                </div>
+                
+                <div class="filter-group">
+                    <button id="menu-calendario" class="btn btn-secondary">
+                        <i class="fas fa-calendar"></i>
+                        Calendário
+                    </button>
+                </div>
+                
+                <div class="filter-group">
+                    <button id="menu-dashboard" class="btn btn-secondary">
+                        <i class="fas fa-chart-bar"></i>
+                        Dashboard
+                    </button>
+                </div>
+            </section>
+            
+            <!-- Área de Conteúdo -->
+            <section class="content-page">
+                <!-- Container de Pedidos -->
+                <div id="orders-container">
+                    <!-- Os pedidos serão carregados aqui -->
+                </div>
+                
+                <!-- Container do Calendário (oculto por padrão) -->
+                <div id="calendar-container" style="display: none;">
+                    <!-- O calendário será carregado aqui -->
+                </div>
+                
+                <!-- Container do Dashboard (oculto por padrão) -->
+                <div id="dashboard-container" style="display: none;">
+                    <!-- O dashboard será carregado aqui -->
+                </div>
+            </section>
+            
+            <!-- Informações de Página -->
+            <div class="page-info">
+                <span id="page-info">Carregando...</span>
+            </div>
+            
+            <!-- Paginação -->
+            <div id="pagination-container">
+                <!-- A paginação será criada dinamicamente -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/orders.js"></script>
+    <script src="js/calendar.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        // Inicialização da aplicação
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== Sistema de Pedidos v4.0 ===');
+            
+            // Inicializar módulos
+            Orders.init();
+            
+            // Configurar navegação
+            document.getElementById('menu-calendario').addEventListener('click', function() {
+                showCalendar();
+            });
+            
+            document.getElementById('menu-dashboard').addEventListener('click', function() {
+                showDashboard();
+            });
+            
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                if (confirm('Deseja realmente sair?')) {
+                    window.location.reload();
+                }
+            });
+            
+            function showCalendar() {
+                document.getElementById('orders-container').style.display = 'none';
+                document.getElementById('dashboard-container').style.display = 'none';
+                document.getElementById('calendar-container').style.display = 'block';
+                document.getElementById('sectionTitle').textContent = 'Calendário';
+                
+                // TODO: Inicializar calendário
+                document.getElementById('calendar-container').innerHTML = `
+                    <div class="coming-soon">
+                        <i class="fas fa-calendar-alt"></i>
+                        <h3>Calendário</h3>
+                        <p>Funcionalidade em desenvolvimento</p>
+                    </div>
+                `;
+            }
+            
+            function showDashboard() {
+                document.getElementById('orders-container').style.display = 'none';
+                document.getElementById('calendar-container').style.display = 'none';
+                document.getElementById('dashboard-container').style.display = 'block';
+                document.getElementById('sectionTitle').textContent = 'Dashboard';
+                
+                // TODO: Inicializar dashboard
+                document.getElementById('dashboard-container').innerHTML = `
+                    <div class="coming-soon">
+                        <i class="fas fa-chart-bar"></i>
+                        <h3>Dashboard</h3>
+                        <p>Funcionalidade em desenvolvimento</p>
+                    </div>
+                `;
+            }
+            
+            function showOrders() {
+                document.getElementById('calendar-container').style.display = 'none';
+                document.getElementById('dashboard-container').style.display = 'none';
+                document.getElementById('orders-container').style.display = 'block';
+                document.getElementById('sectionTitle').textContent = 'Pedidos';
+                Orders.reload();
+            }
+            
+            // Voltar para pedidos ao clicar no botão de atualizar
+            document.getElementById('menu-pedidos').addEventListener('click', function() {
+                showOrders();
+            });
+        });
+    </script>
+</body>
+</html>

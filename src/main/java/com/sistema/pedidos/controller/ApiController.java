@@ -434,6 +434,97 @@ public class ApiController {
     }
 
     /**
+     * Processa requisições GET para pedidos com paginação
+     */
+    private void handleGetOrders(HttpExchange exchange) throws IOException {
+        try {
+            // Extrair parâmetros da query string
+            String query = exchange.getRequestURI().getQuery();
+            Map<String, String> params = parseQueryString(query);
+            
+            // Parâmetros de paginação
+            int page = parseInt(params.get("page"), 1);
+            int size = parseInt(params.get("size"), 20);
+            
+            // Validar tamanho da página (máximo 200)
+            if (size > 200) {
+                size = 200;
+            }
+            
+            // Parâmetros de filtro
+            String startStr = params.get("start");
+            String endStr = params.get("end");
+            String status = params.get("status");
+            
+            // Definir datas padrão se não fornecidas
+            java.time.LocalDate start;
+            java.time.LocalDate end;
+            
+            if (startStr != null && !startStr.trim().isEmpty()) {
+                start = java.time.LocalDate.parse(startStr);
+            } else {
+                start = java.time.LocalDate.now().minusDays(30);
+            }
+            
+            if (endStr != null && !endStr.trim().isEmpty()) {
+                end = java.time.LocalDate.parse(endStr);
+            } else {
+                end = java.time.LocalDate.now();
+            }
+            
+            // Buscar pedidos com paginação
+            Map<String, Object> result = orderService.findOrders(start, end, status, page, size);
+            
+            sendJsonResponse(exchange, 200, result);
+            
+        } catch (IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, ApiResponse.error("Parâmetros inválidos: " + e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            sendJsonResponse(exchange, 500, ApiResponse.error("Erro interno do servidor: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Converte string para int com valor padrão
+     */
+    private int parseInt(String str, int defaultValue) {
+        if (str == null || str.trim().isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+    
+    /**
+     * Faz parse da query string
+     */
+    private Map<String, String> parseQueryString(String query) {
+        Map<String, String> params = new HashMap<>();
+        
+        if (query != null && !query.trim().isEmpty()) {
+            String[] pairs = query.split("&");
+            for (String pair : pairs) {
+                String[] keyValue = pair.split("=", 2);
+                if (keyValue.length == 2) {
+                    try {
+                        String key = java.net.URLDecoder.decode(keyValue[0], "UTF-8");
+                        String value = java.net.URLDecoder.decode(keyValue[1], "UTF-8");
+                        params.put(key, value);
+                    } catch (java.io.UnsupportedEncodingException e) {
+                        // Ignorar parâmetros com encoding inválido
+                    }
+                }
+            }
+        }
+        
+        return params;
+    }
+
+    /**
      * Handler para pedidos
      */
     private class OrdersHandler implements HttpHandler {
@@ -458,8 +549,7 @@ public class ApiController {
             try {
                 switch (method) {
                     case "GET":
-                        List<Order> orders = orderService.findAll();
-                        sendJsonResponse(exchange, 200, orders);
+                        handleGetOrders(exchange);
                         break;
                         
                     case "POST":

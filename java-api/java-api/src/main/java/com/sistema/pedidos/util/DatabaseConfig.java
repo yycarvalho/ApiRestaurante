@@ -1,56 +1,29 @@
 package com.sistema.pedidos.util;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-
-import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 /**
- * Configura√ß√£o de conex√£o com MySQL usando HikariCP
+ * ConfiguraÁ„o de conex„o simples com MySQL usando DriverManager
  */
 public class DatabaseConfig {
 
-    private static volatile HikariDataSource dataSource;
+	private static final String URL = "jdbc:mysql://localhost:3306/pedidos?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
+	private static final String USER = "root";
+	private static final String PASS = "root";
 
-    public static DataSource getDataSource() {
-        if (dataSource == null) {
-            synchronized (DatabaseConfig.class) {
-                if (dataSource == null) {
-                    HikariConfig config = new HikariConfig();
+	static {
+		try {
+			// Carrega o driver do MySQL (opcional nas versıes novas do
+			// connector)
+			Class.forName("com.mysql.cj.jdbc.Driver");
+		} catch (ClassNotFoundException e) {
+			throw new RuntimeException("Erro ao carregar o driver do MySQL", e);
+		}
+	}
 
-                    String host = getEnvOrDefault("DB_HOST", "localhost");
-                    String port = getEnvOrDefault("DB_PORT", "3306");
-                    String db = getEnvOrDefault("DB_NAME", "pedidos");
-                    String user = getEnvOrDefault("DB_USER", "root");
-                    String pass = getEnvOrDefault("DB_PASS", "root");
-
-                    String jdbcUrl = "jdbc:mysql://" + host + ":" + port + "/" + db + "?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
-                    config.setJdbcUrl(jdbcUrl);
-                    config.setUsername(user);
-                    config.setPassword(pass);
-
-                    config.setMaximumPoolSize(10);
-                    config.setMinimumIdle(2);
-                    config.setIdleTimeout(60000);
-                    config.setConnectionTimeout(10000);
-                    config.setLeakDetectionThreshold(120000);
-                    config.setPoolName("PedidosHikariCP");
-
-                    // Seguran√ßa b√°sica
-                    config.addDataSourceProperty("cachePrepStmts", "true");
-                    config.addDataSourceProperty("prepStmtCacheSize", "250");
-                    config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-
-                    dataSource = new HikariDataSource(config);
-                }
-            }
-        }
-        return dataSource;
-    }
-
-    private static String getEnvOrDefault(String key, String defaultValue) {
-        String value = System.getenv(key);
-        return value == null || value.isEmpty() ? defaultValue : value;
-    }
+	public static Connection getConnection() throws SQLException {
+		return DriverManager.getConnection(URL, USER, PASS);
+	}
 }
-

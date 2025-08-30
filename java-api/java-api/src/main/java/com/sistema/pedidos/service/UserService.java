@@ -1,251 +1,212 @@
 package com.sistema.pedidos.service;
 
-import com.sistema.pedidos.model.User;
-
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.sistema.pedidos.model.User;
+import com.sistema.pedidos.util.Db;
 
 /**
- * Serviço de gerenciamento de usuários
+ * Servi�o de gerenciamento de usu�rios (CRUD no banco de dados)
  */
 public class UserService {
-    
-    private final Map<Long, User> users = new HashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
 
-    public UserService() {
-        initializeDefaultUsers();
-    }
+	public List<User> findAll() {
+		List<User> users = new ArrayList<>();
+		String sql = "SELECT id, username, password, full_name, phone, profile_id, created_at, updated_at FROM users";
+		try (Connection conn = Db.getConnection();
+				PreparedStatement ps = conn.prepareStatement(sql);
+				ResultSet rs = ps.executeQuery()) {
+			while (rs.next()) {
+				users.add(mapRow(rs));
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao buscar usu�rios", e);
+		}
+		users.forEach(x -> x.setPassword(""));
+		return users;
+	}
 
-    /**
-     * Inicializa usuários padrão do sistema
-     */
-    private void initializeDefaultUsers() {
-        // Administrador
-        User admin = new User("Administrador", "admin", "123", 1L);
-        admin.setId(idGenerator.getAndIncrement());
-        users.put(admin.getId(), admin);
+	public User findById(Long id) {
+		String sql = "SELECT id, username, password, full_name, phone, profile_id, created_at, updated_at FROM users WHERE id=?";
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, id);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return mapRow(rs);
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao buscar usu�rio por ID", e);
+		}
+		return null;
+	}
 
-        // Atendente
-        User atendente = new User("Atendente", "atendente", "123", 2L);
-        atendente.setId(idGenerator.getAndIncrement());
-        users.put(atendente.getId(), atendente);
+	public User findByUsername(String username) {
+		String sql = "SELECT id, username, password, full_name, phone, profile_id, created_at, updated_at FROM users WHERE username=?";
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setString(1, username);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return mapRow(rs);
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao buscar usu�rio por username", e);
+		}
+		return null;
+	}
 
-        // Entregador
-        User entregador = new User("Entregador", "entregador", "123", 3L);
-        entregador.setId(idGenerator.getAndIncrement());
-        users.put(entregador.getId(), entregador);
-    }
+	public User create(User user) {
+		validateUser(user);
 
-    /**
-     * Busca todos os usuários
-     */
-    public List<User> findAll() {
-        return new ArrayList<>(users.values());
-    }
+		if (findByUsername(user.getUsername()) != null) {
+			throw new IllegalArgumentException("Username já existe");
+		}
 
-    /**
-     * Busca usuário por ID
-     */
-    public User findById(Long id) {
-        return users.get(id);
-    }
+		String sql = "INSERT INTO users (username, password, full_name, phone, profile_id, created_at, updated_at) VALUES (?,?,?,?,?,NOW(),NOW())";
+		try (Connection conn = Db.getConnection();
+				PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+			ps.setString(1, user.getUsername());
+			ps.setString(2, user.getPassword());
+			ps.setString(3, user.getName());
+			ps.setString(4, "");
+			if (user.getProfileId() != null) {
+				ps.setLong(5, user.getProfileId());
+			} else {
+				ps.setNull(5, Types.BIGINT);
+			}
 
-    /**
-     * Busca usuário por username
-     */
-    public User findByUsername(String username) {
-        return users.values().stream()
-                .filter(user -> user.getUsername().equals(username))
-                .findFirst()
-                .orElse(null);
-    }
+			ps.executeUpdate();
 
-    /**
-     * Cria um novo usuário
-     */
-    public User create(User user) {
-        // Validar dados
-        validateUser(user);
+			try (ResultSet keys = ps.getGeneratedKeys()) {
+				if (keys.next()) {
+					user.setId(keys.getLong(1));
+				}
+			}
 
-        // Verificar se username já existe
-        if (findByUsername(user.getUsername()) != null) {
-            throw new IllegalArgumentException("Username já existe");
-        }
+			user.setCreatedAt(LocalDateTime.now());
+			user.setUpdatedAt(LocalDateTime.now());
 
-        // Gerar ID e salvar
-        user.setId(idGenerator.getAndIncrement());
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
-        
-        users.put(user.getId(), user);
-        return user;
-    }
+			return user;
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao criar usu�rio", e);
+		}
+	}
 
-    /**
-     * Atualiza um usuário existente
-     */
-    public User update(Long id, User updatedUser) {
-        User existingUser = findById(id);
-        if (existingUser == null) {
-            throw new IllegalArgumentException("Usuário não encontrado");
-        }
+	public User update(Long id, User updatedUser) {
+		User existing = findById(id);
+		if (existing == null) {
+			throw new IllegalArgumentException("Usu�rio n�o encontrado");
+		}
 
-        // Verificar se novo username já existe (se foi alterado)
-        if (!existingUser.getUsername().equals(updatedUser.getUsername())) {
-            User userWithSameUsername = findByUsername(updatedUser.getUsername());
-            if (userWithSameUsername != null && !userWithSameUsername.getId().equals(id)) {
-                throw new IllegalArgumentException("Username já existe");
-            }
-        }
+		// Verificar username duplicado
+		if (!existing.getUsername().equals(updatedUser.getUsername())) {
+			if (findByUsername(updatedUser.getUsername()) != null) {
+				throw new IllegalArgumentException("Username j� existe");
+			}
+		}
 
-        // Atualizar campos
-        if (updatedUser.getName() != null) {
-            existingUser.setName(updatedUser.getName());
-        }
-        if (updatedUser.getUsername() != null) {
-            existingUser.setUsername(updatedUser.getUsername());
-        }
-        if (updatedUser.getPassword() != null) {
-            existingUser.setPassword(updatedUser.getPassword());
-        }
-        if (updatedUser.getProfileId() != null) {
-            existingUser.setProfileId(updatedUser.getProfileId());
-        }
-        
-        existingUser.setActive(updatedUser.isActive());
-        existingUser.setUpdatedAt(LocalDateTime.now());
+		String sql = "UPDATE users SET username=?, full_name=?, phone=?, profile_id=?, updated_at=NOW() WHERE id=?";
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
 
-        return existingUser;
-    }
+			ps.setString(1, updatedUser.getUsername());
+			ps.setString(2, updatedUser.getName());
+			ps.setString(3, "");
+			if (updatedUser.getProfileId() != null) {
+				ps.setLong(4, updatedUser.getProfileId());
+			} else {
+				ps.setNull(4, Types.BIGINT);
+			}
+			ps.setLong(5, id);
 
-    /**
-     * Remove um usuário
-     */
-    public boolean delete(Long id) {
-        User user = findById(id);
-        if (user == null) {
-            return false;
-        }
+			ps.executeUpdate();
 
-        // Não permitir exclusão do admin principal
-        if ("admin".equals(user.getUsername())) {
-            throw new IllegalArgumentException("Não é possível excluir o usuário administrador principal");
-        }
+			return findById(id);
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao atualizar usu�rio", e);
+		}
+	}
 
-        users.remove(id);
-        return true;
-    }
+	public boolean delete(Long id) {
+		User user = findById(id);
+		if (user == null)
+			return false;
 
-    /**
-     * Busca usuários por perfil
-     */
-    public List<User> findByProfileId(Long profileId) {
-        return users.values().stream()
-                .filter(user -> Objects.equals(user.getProfileId(), profileId))
-                .collect(Collectors.toList());
-    }
+		if ("admin".equals(user.getUsername())) {
+			throw new IllegalArgumentException("N�o � poss�vel excluir o admin principal");
+		}
 
-    /**
-     * Busca usuários ativos
-     */
-    public List<User> findActiveUsers() {
-        return users.values().stream()
-                .filter(User::isActive)
-                .collect(Collectors.toList());
-    }
+		String sql = "DELETE FROM users WHERE id=?";
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, id);
+			return ps.executeUpdate() > 0;
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao excluir usu�rio", e);
+		}
+	}
 
-    /**
-     * Altera status de um usuário
-     */
-    public User toggleUserStatus(Long id) {
-        User user = findById(id);
-        if (user == null) {
-            throw new IllegalArgumentException("Usuário não encontrado");
-        }
+	public User resetPassword(Long id, String newPassword) {
+		if (newPassword == null || newPassword.trim().isEmpty()) {
+			newPassword = "123"; // senha padr�o
+		}
+		String sql = "UPDATE users SET password=?, updated_at=NOW() WHERE id=?";
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setString(1, newPassword);
+			ps.setLong(2, id);
+			ps.executeUpdate();
+			return findById(id);
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao resetar senha", e);
+		}
+	}
 
-        // Não permitir desativar o admin principal
-        if ("admin".equals(user.getUsername()) && user.isActive()) {
-            throw new IllegalArgumentException("Não é possível desativar o usuário administrador principal");
-        }
+	public List<User> findByProfileId(Long profileId) {
+		List<User> users = new ArrayList<>();
+		String sql = "SELECT id, username, password, full_name, phone, profile_id, created_at, updated_at FROM users WHERE profile_id=?";
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, profileId);
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					users.add(mapRow(rs));
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("Erro ao buscar usu�rios por perfil", e);
+		}
+		return users;
+	}
 
-        user.setActive(!user.isActive());
-        user.setUpdatedAt(LocalDateTime.now());
-        
-        return user;
-    }
+	private User mapRow(ResultSet rs) throws SQLException {
+		User u = new User();
+		u.setId(rs.getLong("id"));
+		u.setUsername(rs.getString("username"));
+		u.setPassword(rs.getString("password"));
+		u.setName(rs.getString("full_name"));
+		// u.setPhone(rs.getString("phone"));
+		u.setProfileId(rs.getObject("profile_id") != null ? rs.getLong("profile_id") : null);
+		u.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
+		u.setUpdatedAt(rs.getTimestamp("updated_at").toLocalDateTime());
+		return u;
+	}
 
-    /**
-     * Reseta a senha de um usuário
-     */
-    public User resetPassword(Long id, String newPassword) {
-        User user = findById(id);
-        if (user == null) {
-            throw new IllegalArgumentException("Usuário não encontrado");
-        }
-
-        if (newPassword == null || newPassword.trim().isEmpty()) {
-            newPassword = "123"; // Senha padrão
-        }
-
-        user.setPassword(newPassword);
-        user.setUpdatedAt(LocalDateTime.now());
-        
-        return user;
-    }
-
-    /**
-     * Obtém estatísticas dos usuários
-     */
-    public Map<String, Object> getUserStats() {
-        Map<String, Object> stats = new HashMap<>();
-        
-        List<User> allUsers = findAll();
-        long activeUsers = allUsers.stream().filter(User::isActive).count();
-        long inactiveUsers = allUsers.size() - activeUsers;
-        
-        // Contagem por perfil
-        Map<Long, Long> usersByProfile = allUsers.stream()
-                .filter(user -> user.getProfileId() != null)
-                .collect(Collectors.groupingBy(User::getProfileId, Collectors.counting()));
-        
-        stats.put("totalUsers", allUsers.size());
-        stats.put("activeUsers", activeUsers);
-        stats.put("inactiveUsers", inactiveUsers);
-        stats.put("usersByProfile", usersByProfile);
-        
-        return stats;
-    }
-
-    /**
-     * Valida os dados do usuário
-     */
-    private void validateUser(User user) {
-        if (user == null) {
-            throw new IllegalArgumentException("Usuário não pode ser nulo");
-        }
-        
-        if (user.getName() == null || user.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Nome é obrigatório");
-        }
-        
-        if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
-            throw new IllegalArgumentException("Username é obrigatório");
-        }
-        
-        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
-            throw new IllegalArgumentException("Senha é obrigatória");
-        }
-        
-        if (user.getPassword().length() < 3) {
-            throw new IllegalArgumentException("Senha deve ter pelo menos 3 caracteres");
-        }
-        
-        if (user.getProfileId() == null) {
-            throw new IllegalArgumentException("Perfil é obrigatório");
-        }
-    }
+	private void validateUser(User user) {
+		if (user == null)
+			throw new IllegalArgumentException("Usu�rio n�o pode ser nulo");
+		if (user.getName() == null || user.getName().trim().isEmpty())
+			throw new IllegalArgumentException("Nome � obrigat�rio");
+		if (user.getUsername() == null || user.getUsername().trim().isEmpty())
+			throw new IllegalArgumentException("Username � obrigat�rio");
+		if (user.getPassword() == null || user.getPassword().trim().isEmpty())
+			throw new IllegalArgumentException("Senha � obrigat�ria");
+		if (user.getPassword().length() < 3)
+			throw new IllegalArgumentException("Senha deve ter pelo menos 3 caracteres");
+	}
 }
-

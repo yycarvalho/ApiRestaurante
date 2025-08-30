@@ -9,12 +9,10 @@ import java.sql.SQLException;
  */
 public class ActionLogger {
 
-	public static void log(String level, String action, String message,
-			String actorUsername, Long actorUserId, String ip,
-			String metadataJson) {
+	public static void log(String level, String action, String message, String actorUsername, Long actorUserId,
+			String ip, String metadataJson) {
 		String sql = "INSERT INTO system_logs (level, action, message, actor_username, actor_user_id, ip, metadata) VALUES (?,?,?,?,?,?,?)";
-		try (Connection conn = Db.getConnection();
-				PreparedStatement ps = conn.prepareStatement(sql)) {
+		try (Connection conn = Db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
 
 			ps.setString(1, level);
 			ps.setString(2, action);
@@ -28,7 +26,7 @@ public class ActionLogger {
 			}
 
 			ps.setString(6, ip);
-			ps.setString(7, metadataJson); // Grava como string (JSON válido ou
+			ps.setString(7, metadataJson); // Grava como string (JSON vï¿½lido ou
 											// null)
 
 			ps.executeUpdate();
@@ -37,4 +35,5 @@ public class ActionLogger {
 			System.err.println("[LOG ERROR] " + action + ": " + e.getMessage());
 		}
 	}
+
 }

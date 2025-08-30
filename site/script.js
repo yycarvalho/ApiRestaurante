@@ -64,6 +64,11 @@ const API_CONFIG = {
         METRICS: {
             DASHBOARD: '/metrics/dashboard',
             REPORTS: '/metrics/reports'
+        },
+        CHAT: {
+            SEND_MESSAGE: '/chat/send',
+            GET_MESSAGES: '/chat/messages',
+            GET_UNREAD_COUNT: '/chat/unread'
         }
     }
 };
@@ -266,38 +271,87 @@ class SistemaPedidos {
             }
         }, 2 * 60 * 1000); // 2 minutos
 
-        // Polling em background para dados (pedidos, métricas, produtos, perfis, usuários)
+        // Polling em background para dados baseado na aba ativa
         setInterval(async () => {
-            if (!this.apiService.token || !this.currentUser) return;
+            if (!this.apiService.token || !this.currentUser || !this.activeSection) return;
+            
             try {
-                const [ordersData, metricsData, productsData, profilesData, usersData] = await Promise.all([
-                    this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST),
-                    this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST)
-                ]);
+                // Fazer requisições apenas para dados relevantes à aba ativa
+                const requests = [];
+                const requestTypes = [];
 
-                const ordersChanged = JSON.stringify(ordersData) !== JSON.stringify(this.orders);
-                const metricsChanged = JSON.stringify(metricsData) !== JSON.stringify(this.metrics);
-                const productsChanged = JSON.stringify(productsData) !== JSON.stringify(this.products);
-                const profilesChanged = JSON.stringify(profilesData) !== JSON.stringify(this.profiles);
-                const usersChanged = JSON.stringify(usersData) !== JSON.stringify(this.users);
+                // Sempre buscar pedidos (usado em várias abas)
+                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST));
+                requestTypes.push('orders');
 
-                if (ordersChanged) this.orders = ordersData;
-                if (metricsChanged) this.metrics = metricsData;
-                if (productsChanged) this.products = productsData;
-                if (profilesChanged) this.profiles = profilesData;
-                if (usersChanged) this.users = usersData;
+                // Requisições específicas por aba
+                switch (this.activeSection) {
+                    case 'dashboard':
+                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD));
+                        requestTypes.push('metrics');
+                        break;
+                    case 'cardapio':
+                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST));
+                        requestTypes.push('products');
+                        break;
+                    case 'perfis':
+                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST));
+                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST));
+                        requestTypes.push('profiles', 'users');
+                        break;
+                    case 'pedidos':
+                        // Pedidos já incluído acima
+                        break;
+                    case 'clientes':
+                        // Clientes serão carregados sob demanda
+                        break;
+                    case 'relatorios':
+                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD));
+                        requestTypes.push('metrics');
+                        break;
+                }
 
-                if (ordersChanged || metricsChanged || productsChanged || profilesChanged || usersChanged) {
-                    // Re-renderizar seção ativa
-                    if (this.activeSection) {
-                        this.renderSectionContent(this.activeSection);
+                const responses = await Promise.all(requests);
+                let hasChanges = false;
+
+                // Processar respostas
+                responses.forEach((data, index) => {
+                    const type = requestTypes[index];
+                    let changed = false;
+
+                    switch (type) {
+                        case 'orders':
+                            changed = JSON.stringify(data) !== JSON.stringify(this.orders);
+                            if (changed) this.orders = data;
+                            break;
+                        case 'metrics':
+                            changed = JSON.stringify(data) !== JSON.stringify(this.metrics);
+                            if (changed) this.metrics = data;
+                            break;
+                        case 'products':
+                            changed = JSON.stringify(data) !== JSON.stringify(this.products);
+                            if (changed) this.products = data;
+                            break;
+                        case 'profiles':
+                            changed = JSON.stringify(data) !== JSON.stringify(this.profiles);
+                            if (changed) this.profiles = data;
+                            break;
+                        case 'users':
+                            changed = JSON.stringify(data) !== JSON.stringify(this.users);
+                            if (changed) this.users = data;
+                            break;
                     }
+
+                    if (changed) hasChanges = true;
+                });
+
+                // Re-renderizar apenas se houve mudanças
+                if (hasChanges) {
+                    this.renderSectionContent(this.activeSection);
                 }
             } catch (e) {
                 // Silenciar erros de polling para não atrapalhar UX
+                console.warn('Erro no polling da aba ativa:', e.message);
             }
         }, 30 * 1000); // a cada 30s
     }
@@ -413,12 +467,14 @@ class SistemaPedidos {
                 visualizarValorPedido: 'Visualizar Valor do Pedido',
                 acompanharEntregas: 'Acompanhar Entregas',
                 gerarRelatorios: 'Gerar Relatórios',
+				verPerfis: 'Ver Perfil',
                 gerenciarPerfis: 'Gerenciar Perfis',
                 alterarStatusPedido: 'Alterar Status do Pedido',
                 selecionarStatusEspecifico: 'Selecionar Status Específico',
                 criarUsuarios: 'Criar Usuários',
                 editarUsuarios: 'Editar Usuários',
                 excluirUsuarios: 'Excluir Usuários',
+				verClientes: 'Ver Clientes',
             };
 
             this.navigateToSection('dashboard');
@@ -490,7 +546,6 @@ class SistemaPedidos {
             this.showToast('Login realizado com sucesso!', 'success');
 
         } catch (error) {
-            console.error('Erro no login:', error);
             this.showToast(error.message || 'Erro ao fazer login. Tente novamente.', 'error');
         } finally {
             this.hideLoading();
@@ -575,7 +630,7 @@ class SistemaPedidos {
                     hasPermission = this.permissions.gerarRelatorios;
                     break;
                 case 'perfis':
-                    hasPermission = this.permissions.gerenciarPerfis;
+                    hasPermission = true;
                     break;
                 default:
                     hasPermission = false;
@@ -598,6 +653,9 @@ class SistemaPedidos {
     }
 
     navigateToSection(section) {
+        // Mostrar loading durante navegação
+        this.showLoading();
+        
         this.activeSection = section;
 
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -613,7 +671,11 @@ class SistemaPedidos {
             document.getElementById('sectionTitle').textContent = navItem.querySelector('span').textContent;
         }
 
-        this.renderSectionContent(section);
+        // Renderizar conteúdo e esconder loading
+        setTimeout(() => {
+            this.renderSectionContent(section);
+            this.hideLoading();
+        }, 300); // Pequeno delay para mostrar o loading
     }
 
     renderSectionContent(section) {
@@ -978,55 +1040,46 @@ class SistemaPedidos {
     }
 
     showCustomerDetailsModal(customer, orders, messages) {
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content modal-large">
-                <div class="modal-header">
-                    <h2>Detalhes do Cliente</h2>
-                    <button class="modal-close" onclick="this.closest('.modal').remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
+        const modalHTML = `
+            <div class="modal-header">
+                <h3>Detalhes do Cliente</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="customer-details">
+                    <div class="customer-profile">
+                        <div class="customer-avatar large">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="customer-info">
+                            <h3>${customer.name}</h3>
+                            <p>${customer.phone}</p>
+                            <p>Cliente desde: ${new Date(customer.createdAt).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="modal-body">
-                    <div class="customer-details">
-                        <div class="customer-profile">
-                            <div class="customer-avatar large">
-                                <i class="fas fa-user"></i>
-                            </div>
-                            <div class="customer-info">
-                                <h3>${customer.name}</h3>
-                                <p>${customer.phone}</p>
-                                <p>Cliente desde: ${new Date(customer.createdAt).toLocaleDateString('pt-BR')}</p>
-                            </div>
-                        </div>
+                
+                <div class="customer-tabs">
+                    <button class="tab-btn active" data-tab="orders">Pedidos (${orders.length})</button>
+                    <button class="tab-btn" data-tab="conversations">Conversas (${messages.length})</button>
+                </div>
+                
+                <div class="tab-content">
+                    <div class="tab-pane active" data-tab="orders">
+                        ${this.renderCustomerOrders(orders)}
                     </div>
-                    
-                    <div class="customer-tabs">
-                        <button class="tab-btn active" data-tab="orders">Pedidos (${orders.length})</button>
-                        <button class="tab-btn" data-tab="conversations">Conversas (${messages.length})</button>
-                    </div>
-                    
-                    <div class="tab-content">
-                        <div class="tab-pane active" data-tab="orders">
-                            ${this.renderCustomerOrders(orders)}
-                        </div>
-                        <div class="tab-pane" data-tab="conversations">
-                            ${this.renderCustomerConversations(messages)}
-                        </div>
+                    <div class="tab-pane" data-tab="conversations">
+                        ${this.renderCustomerConversations(messages)}
                     </div>
                 </div>
             </div>
         `;
         
-        document.body.appendChild(modal);
-        
-        // Configurar tabs
-        this.setupCustomerTabs(modal);
-        
-        // Fechar modal ao clicar fora
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+        this.renderModal(modalHTML, (modal) => {
+            modal.querySelector('.modal-close').onclick = () => this.closeModal();
+            
+            // Configurar tabs
+            this.setupCustomerTabs(modal);
         });
     }
 
@@ -1101,40 +1154,33 @@ class SistemaPedidos {
     }
 
     showNewCustomerModal() {
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Novo Cliente</h2>
-                    <button class="modal-close" onclick="this.closest('.modal').remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <form id="newCustomerForm">
-                        <div class="form-group">
-                            <label for="customerName">Nome</label>
-                            <input type="text" id="customerName" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="customerPhone">Telefone</label>
-                            <input type="tel" id="customerPhone" required>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancelar</button>
-                    <button class="btn btn-primary" onclick="sistema.saveNewCustomer()">Salvar</button>
-                </div>
+        const modalHTML = `
+            <div class="modal-header">
+                <h3>Novo Cliente</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="newCustomerForm">
+                    <div class="form-group">
+                        <label for="customerName">Nome</label>
+                        <input type="text" id="customerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customerPhone">Telefone</label>
+                        <input type="tel" id="customerPhone" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelCustomerBtn">Cancelar</button>
+                <button class="btn btn-primary" id="saveCustomerBtn">Salvar</button>
             </div>
         `;
         
-        document.body.appendChild(modal);
-        
-        // Fechar modal ao clicar fora
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+        this.renderModal(modalHTML, (modal) => {
+            modal.querySelector('#cancelCustomerBtn').onclick = () => this.closeModal();
+            modal.querySelector('.modal-close').onclick = () => this.closeModal();
+            modal.querySelector('#saveCustomerBtn').onclick = () => this.saveNewCustomer();
         });
     }
 
@@ -1156,7 +1202,7 @@ class SistemaPedidos {
             this.renderCustomersGrid();
             
             // Fechar modal
-            document.querySelector('.modal').remove();
+            this.closeModal();
         } catch (error) {
             console.error('Erro ao criar cliente:', error);
             this.showToast('Erro ao criar cliente.', 'error');
@@ -1282,9 +1328,13 @@ class SistemaPedidos {
                         <i class="fas fa-user-plus"></i> Novo Usuário
                     </button>
                     ` : ''}
+					
+					${this.permissions.criarUsuarios ? `
                     <button class="btn btn-secondary" id="manageProfilesBtn">
                         <i class="fas fa-cogs"></i> Gerenciar Perfis
                     </button>
+                    ` : ''}
+
                     <button class="btn btn-secondary" id="changePasswordBtn">
                         <i class="fas fa-key"></i> Alterar Minha Senha
                     </button>
@@ -1326,7 +1376,7 @@ class SistemaPedidos {
                 
                 <h3>Tipos de Perfil</h3>
                 <div class="profiles-grid" id="profilesGrid">
-                    ${this.profiles.map(profile => `
+                      ${this.permissions.gerenciarPerfis ? this.profiles.map(profile => `
                         <div class="profile-card" data-profile-id="${profile.id}">
                              <div class="profile-header">
                                  <h4>${profile.name}</h4>
@@ -1343,7 +1393,7 @@ class SistemaPedidos {
                                  ` : ''}
                              </div>
                          </div>
-                         `).join('')}
+                         `).join(''): ""}
                 </div>
             </div>
         `;
@@ -1351,7 +1401,9 @@ class SistemaPedidos {
         if (this.permissions.criarUsuarios) {
             document.getElementById('newUserBtn').onclick = () => this.showUserModal();
         }
-        document.getElementById('manageProfilesBtn').onclick = () => this.showProfileModal();
+		if (this.permissions.gerenciarPerfis) {
+            document.getElementById('manageProfilesBtn').onclick = () => this.showProfileModal();
+        }
         document.getElementById('changePasswordBtn').onclick = () => this.showChangePasswordModal();
     }
 
@@ -1369,7 +1421,7 @@ class SistemaPedidos {
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="order-details-container">
+                <div class="order-details-container" data-order-id="${orderId}">
                     <div class="order-info">
                         <h4>Informações do Pedido</h4>
                         <p><strong>Cliente:</strong> ${order.customer}</p>
@@ -1392,22 +1444,24 @@ class SistemaPedidos {
                     ${this.permissions.verChat ? `
                     <div class="order-chat">
                         <h4>Chat do Pedido</h4>
-                        <div class="chat-messages" id="chatMessages">
-                            ${order.chat ? order.chat.map(msg => `
-                                <div class="chat-message ${msg.sender}">
-                                    <div class="message-content">${msg.message}</div>
-                                    <div class="message-time">${new Date(msg.time).toLocaleTimeString()}</div>
-                                </div>
-                            `).join('') : ''}
+                        <div class="chat-container">
+                            <div class="chat-header">
+                                <button class="btn btn-sm btn-secondary" id="loadMoreMessages" style="display: none;">
+                                    <i class="fas fa-arrow-up"></i> Carregar mensagens anteriores
+                                </button>
+                            </div>
+                            <div class="chat-messages" id="chatMessages">
+                                <div class="loading-messages">Carregando mensagens...</div>
+                            </div>
+                            ${this.permissions.enviarChat ? `
+                            <div class="chat-input">
+                                <input type="text" id="newMessage" placeholder="Digite sua mensagem..." maxlength="500">
+                                <button class="btn btn-primary" id="sendMessageBtn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            ` : ''}
                         </div>
-                        ${this.permissions.enviarChat ? `
-                        <div class="chat-input">
-                            <input type="text" id="newMessage" placeholder="Digite sua mensagem..." maxlength="500">
-                            <button class="btn btn-primary" id="sendMessageBtn">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                        ` : ''}
                     </div>
                     ` : ''}
                 </div>
@@ -1423,9 +1477,15 @@ class SistemaPedidos {
             </div>
         `;
         
-        this.renderModal(modalHTML, (modal) => {
-            modal.querySelector('#closeModalBtn').onclick = () => this.closeModal();
-            modal.querySelector('.modal-close').onclick = () => this.closeModal();
+        this.renderModal(modalHTML, async (modal) => {
+            modal.querySelector('#closeModalBtn').onclick = () => {
+                this.stopChatPolling();
+                this.closeModal();
+            };
+            modal.querySelector('.modal-close').onclick = () => {
+                this.stopChatPolling();
+                this.closeModal();
+            };
             
             if (modal.querySelector('#updateStatusBtn')) {
                 modal.querySelector('#updateStatusBtn').onclick = () => this.showUpdateStatusModal(orderId);
@@ -1435,22 +1495,30 @@ class SistemaPedidos {
                 modal.querySelector('#printOrderBtn').onclick = () => this.printOrder(orderId);
             }
             
-            if (modal.querySelector('#sendMessageBtn')) {
-                const sendMessage = () => {
-                    const messageInput = modal.querySelector('#newMessage');
-                    const message = messageInput.value.trim();
-                    if (message) {
-                        this.addChatMessage(orderId, message);
-                        messageInput.value = '';
-                        // Recarregar o modal para mostrar a nova mensagem
-                        this.showOrderModal(orderId);
-                    }
-                };
+            // Configurar chat se disponível
+            if (this.permissions.verChat) {
+                await this.initializeChatInterface(orderId);
                 
-                modal.querySelector('#sendMessageBtn').onclick = sendMessage;
-                modal.querySelector('#newMessage').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') sendMessage();
-                });
+                if (modal.querySelector('#sendMessageBtn')) {
+                    const sendMessage = async () => {
+                        const messageInput = modal.querySelector('#newMessage');
+                        const message = messageInput.value.trim();
+                        if (message) {
+                            try {
+                                await this.sendChatMessage(orderId, message);
+                                messageInput.value = '';
+                                // A mensagem será atualizada automaticamente pelo polling
+                            } catch (error) {
+                                this.showToast('Erro ao enviar mensagem.', 'error');
+                            }
+                        }
+                    };
+                    
+                    modal.querySelector('#sendMessageBtn').onclick = sendMessage;
+                    modal.querySelector('#newMessage').addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') sendMessage();
+                    });
+                }
             }
         });
     }
@@ -2242,6 +2310,208 @@ class SistemaPedidos {
         } catch (error) {
             console.error('Erro ao excluir produto:', error);
             this.showToast('Erro ao excluir o produto.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async initializeChatInterface(orderId) {
+        try {
+            // Carregar mensagens iniciais
+            const chatData = await this.getChatMessages(orderId, 1, 10);
+            const chatContainer = document.getElementById('chatMessages');
+            const loadMoreBtn = document.getElementById('loadMoreMessages');
+            
+            if (chatContainer) {
+                // Atualizar interface com mensagens
+                this.updateChatInterface(orderId, chatData.messages);
+                
+                // Configurar botão de carregar mais mensagens
+                if (loadMoreBtn && chatData.hasMore) {
+                    loadMoreBtn.style.display = 'block';
+                    loadMoreBtn.onclick = async () => {
+                        const hasMore = await this.loadMoreChatMessages(orderId, chatData.currentPage);
+                        if (!hasMore) {
+                            loadMoreBtn.style.display = 'none';
+                        }
+                    };
+                }
+                
+                // Scroll para o final do chat
+                setTimeout(() => {
+                    this.scrollChatToBottom(chatContainer);
+                }, 100);
+                
+                // Iniciar polling para novas mensagens
+                this.startChatPolling(orderId);
+            }
+        } catch (error) {
+            console.error('Erro ao inicializar chat:', error);
+            const chatContainer = document.getElementById('chatMessages');
+            if (chatContainer) {
+                chatContainer.innerHTML = '<div class="error-message">Erro ao carregar mensagens do chat.</div>';
+            }
+        }
+    }
+
+    // =================================================================
+    // 8. SISTEMA DE CHAT DE PEDIDOS
+    // =================================================================
+
+    async sendChatMessage(orderId, message, senderId = null) {
+        try {
+            const messageData = {
+                orderId: orderId,
+                message: message.trim(),
+                senderId: senderId || 'system',
+                clientId: this.currentUser,
+                timestamp: new Date().toISOString()
+            };
+
+            const response = await this.apiService.post(API_CONFIG.ENDPOINTS.CHAT.SEND_MESSAGE, messageData);
+            
+            // Atualizar cache local do pedido
+            const order = this.orders.find(o => o.id === orderId);
+            if (order) {
+                if (!order.chat) order.chat = [];
+                order.chat.push(response);
+            }
+
+            return response;
+        } catch (error) {
+            console.error('Erro ao enviar mensagem:', error);
+            throw error;
+        }
+    }
+
+    async getChatMessages(orderId, page = 1, limit = 10) {
+        try {
+            const response = await this.apiService.get(API_CONFIG.ENDPOINTS.CHAT.GET_MESSAGES, {
+                orderId: orderId,
+                page: page,
+                limit: limit
+            });
+
+            return {
+                messages: response.messages || [],
+                totalPages: response.totalPages || 1,
+                currentPage: response.currentPage || 1,
+                hasMore: response.hasMore || false
+            };
+        } catch (error) {
+            console.error('Erro ao carregar mensagens:', error);
+            throw error;
+        }
+    }
+
+    async getUnreadMessagesCount(orderId = null) {
+        try {
+            const params = orderId ? { orderId } : {};
+            const response = await this.apiService.get(API_CONFIG.ENDPOINTS.CHAT.GET_UNREAD_COUNT, params);
+            return response.count || 0;
+        } catch (error) {
+            console.error('Erro ao carregar contagem de mensagens não lidas:', error);
+            return 0;
+        }
+    }
+
+    // Sistema de auto-atualização de mensagens
+    startChatPolling(orderId) {
+        if (this.chatPollingInterval) {
+            clearInterval(this.chatPollingInterval);
+        }
+
+        this.chatPollingInterval = setInterval(async () => {
+            try {
+                // Verificar se ainda estamos no chat do pedido
+                const activeModal = document.querySelector('.modal-backdrop');
+                if (!activeModal || !activeModal.querySelector(`[data-order-id="${orderId}"]`)) {
+                    this.stopChatPolling();
+                    return;
+                }
+
+                // Buscar novas mensagens
+                const chatData = await this.getChatMessages(orderId, 1, 50);
+                const order = this.orders.find(o => o.id === orderId);
+                
+                if (order && chatData.messages.length > 0) {
+                    const currentMessagesCount = order.chat ? order.chat.length : 0;
+                    
+                    if (chatData.messages.length > currentMessagesCount) {
+                        // Atualizar cache local
+                        order.chat = chatData.messages;
+                        
+                        // Atualizar interface do chat
+                        this.updateChatInterface(orderId, chatData.messages);
+                    }
+                }
+            } catch (error) {
+                console.warn('Erro no polling do chat:', error);
+            }
+        }, 5000); // Verificar a cada 5 segundos
+    }
+
+    stopChatPolling() {
+        if (this.chatPollingInterval) {
+            clearInterval(this.chatPollingInterval);
+            this.chatPollingInterval = null;
+        }
+    }
+
+    updateChatInterface(orderId, messages) {
+        const chatContainer = document.getElementById('chatMessages');
+        if (!chatContainer) return;
+
+        const wasAtBottom = this.isChatAtBottom(chatContainer);
+
+        chatContainer.innerHTML = messages.map(msg => `
+            <div class="chat-message ${msg.senderId === 'system' ? 'system' : 'user'}" data-message-id="${msg.id}">
+                <div class="message-content">${msg.message}</div>
+                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                <div class="message-sender">${msg.senderId === 'system' ? 'Sistema' : msg.clientId || 'Cliente'}</div>
+            </div>
+        `).join('');
+
+        // Se estava no final, manter no final
+        if (wasAtBottom) {
+            this.scrollChatToBottom(chatContainer);
+        }
+    }
+
+    isChatAtBottom(chatContainer) {
+        const threshold = 50; // pixels de tolerância
+        return chatContainer.scrollTop + chatContainer.clientHeight >= chatContainer.scrollHeight - threshold;
+    }
+
+    scrollChatToBottom(chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    async loadMoreChatMessages(orderId, currentPage) {
+        try {
+            this.showLoading();
+            
+            const chatData = await this.getChatMessages(orderId, currentPage + 1, 10);
+            
+            if (chatData.messages.length > 0) {
+                const order = this.orders.find(o => o.id === orderId);
+                if (order) {
+                    // Adicionar mensagens antigas ao início
+                    if (!order.chat) order.chat = [];
+                    order.chat = [...chatData.messages, ...order.chat];
+                    
+                    // Atualizar interface
+                    this.updateChatInterface(orderId, order.chat);
+                }
+                
+                return chatData.hasMore;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('Erro ao carregar mais mensagens:', error);
+            this.showToast('Erro ao carregar mensagens antigas.', 'error');
+            return false;
         } finally {
             this.hideLoading();
         }

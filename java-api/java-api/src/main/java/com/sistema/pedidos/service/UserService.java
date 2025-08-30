@@ -30,7 +30,6 @@ public class UserService {
 		} catch (SQLException e) {
 			throw new RuntimeException("Erro ao buscar usu�rios", e);
 		}
-		users.forEach(x -> x.setPassword(""));
 		return users;
 	}
 

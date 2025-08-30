@@ -6,8 +6,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistema.pedidos.dto.ApiResponse;
@@ -22,6 +24,7 @@ import com.sistema.pedidos.service.AuthService;
 import com.sistema.pedidos.service.CustomerService;
 import com.sistema.pedidos.service.MetricsService;
 import com.sistema.pedidos.service.OrderService;
+import com.sistema.pedidos.service.PERMISSIONS;
 import com.sistema.pedidos.service.ProductService;
 import com.sistema.pedidos.service.ProfileService;
 import com.sistema.pedidos.service.UserService;
@@ -243,6 +246,19 @@ public class ApiController {
 			try {
 				switch (method) {
 				case "GET":
+					System.out.println("Lista de Perfils");
+
+					for (Entry<String, Boolean> iterable_element : getUser(exchange).getPermissions().entrySet()) {
+						System.out.println(iterable_element.getKey());
+						if (iterable_element.getKey().equalsIgnoreCase(PERMISSIONS.GERENCIAR_PERFIS.getName()))
+							if (!iterable_element.getValue()) {
+								// profile.setName(getUser(exchange).getProfileName());
+								// profile.setDescription(getUser(exchange).getProfileName());
+
+								sendJsonResponse(exchange, 200, Arrays.asList(getUser(exchange)));
+								return;
+							}
+					}
 					List<User> users = userService.findAll();
 					sendJsonResponse(exchange, 200, users);
 					break;
@@ -353,6 +369,31 @@ public class ApiController {
 			try {
 				switch (method) {
 				case "GET":
+//					if (!isAuthenticated(exchange)) {
+//						sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
+//						return;
+//					}
+					System.out.println("Lista de Perfils");
+
+					for (Entry<String, Boolean> iterable_element : getUser(exchange).getPermissions().entrySet()) {
+						System.out.println(iterable_element.getKey());
+						if (iterable_element.getKey().equalsIgnoreCase(PERMISSIONS.GERENCIAR_PERFIS.getName()))
+							if (!iterable_element.getValue()) {
+								Profile profile = new Profile();
+								profile.setId(-1L);
+								// profile.setName(getUser(exchange).getProfileName());
+								// profile.setDescription(getUser(exchange).getProfileName());
+								profile.setPermissions(getUser(exchange).getPermissions());
+								sendJsonResponse(exchange, 200, Arrays.asList(profile));
+								return;
+							}
+					}
+
+//					if (getUser(exchange).getPermissions().get(PERMISSIONS.GERENCIAR_PERFIS.getName())) {
+//						sendJsonResponse(exchange, 200, ApiResponse.error("Sem permisao para lista perfils"));
+//						return;
+//					}
+
 					List<Profile> profiles = profileService.findAll();
 					sendJsonResponse(exchange, 200, profiles);
 					break;
@@ -363,7 +404,13 @@ public class ApiController {
 						return;
 					}
 					String requestBody = readRequestBody(exchange);
+
 					Profile newProfile = objectMapper.readValue(requestBody, Profile.class);
+
+					if (!newProfile.getPermissions().keySet().stream().allMatch(x -> PERMISSIONS.containsName(x))) {
+						sendJsonResponse(exchange, 200, ApiResponse.error("Um dos perfies não existe"));
+						return;
+					}
 					Profile createdProfile = profileService.create(newProfile);
 					sendJsonResponse(exchange, 201, createdProfile);
 					break;
@@ -377,7 +424,17 @@ public class ApiController {
 					if (pathParts.length >= 4) {
 						Long profileId = Long.parseLong(pathParts[3]);
 						String updateBody = readRequestBody(exchange);
+
+						System.out.println(updateBody);
+
 						Profile updateProfile = objectMapper.readValue(updateBody, Profile.class);
+
+						if (!updateProfile.getPermissions().keySet().stream()
+								.allMatch(x -> PERMISSIONS.containsName(x))) {
+							sendJsonResponse(exchange, 200, ApiResponse.error("Um dos perfies não existe"));
+							return;
+						}
+
 						Profile updatedProfile = profileService.update(profileId, updateProfile);
 						sendJsonResponse(exchange, 200, updatedProfile);
 					} else {
@@ -592,6 +649,14 @@ public class ApiController {
 				return;
 			}
 
+			String token = extractToken(exchange);
+			User userFromToken = authService.getUserFromToken(token);
+
+			if (!metricsService.isPermimissions(userFromToken)) {
+				sendJsonResponse(exchange, 401, ApiResponse.error("Permissão inválid"));
+				return;
+			}
+
 			try {
 				Map<String, Object> metrics = metricsService.getDashboardMetrics();
 				sendJsonResponse(exchange, 200, metrics);
@@ -699,7 +764,13 @@ public class ApiController {
 						return;
 					}
 					Customer saved = customerService.upsertByPhone(name, phone);
-					ActionLogger.log("INFO", "cliente_upsert", "Cliente salvo", null, null, null, null);
+
+					String token = extractToken(exchange);
+					User userFromToken = authService.getUserFromToken(token);
+
+					ActionLogger.log("INFO", "cliente_upsert", "SAVE CLIENT", userFromToken.getName(),
+							userFromToken.getId(), exchange.getRemoteAddress().getAddress().getHostAddress(), body);
+
 					sendJsonResponse(exchange, 201, saved);
 					break;
 				default:
@@ -729,6 +800,11 @@ public class ApiController {
 		} catch (Exception e) {
 			return false;
 		}
+	}
+
+	private User getUser(HttpExchange exchange) {
+		String token = extractToken(exchange);
+		return authService.getUserFromToken(token);
 	}
 
 	private String extractToken(HttpExchange exchange) {

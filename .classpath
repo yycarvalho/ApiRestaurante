@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="java-api/java-api/src/main/java"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/HikariCP-5.1.0.jar"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/jackson-annotations-2.15.2.jar"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/jackson-core-2.15.2.jar"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/jackson-databind-2.15.2.jar"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/jackson-datatype-jsr310-2.15.2.jar"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/mysql-connector-j-8.4.0.jar"/>
+	<classpathentry kind="lib" path="java-api/java-api/lib/slf4j-api-2.0.17.jar"/>
+	<classpathentry kind="lib" path="lib/HikariCP-5.1.0.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-annotations-2.15.2.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-core-2.15.2.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-databind-2.15.2.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-j-8.4.0.jar"/>
+	<classpathentry kind="output" path="java-api/java-api/build/classes"/>
+</classpath>

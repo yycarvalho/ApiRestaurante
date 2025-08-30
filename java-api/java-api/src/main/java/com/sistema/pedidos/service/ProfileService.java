@@ -1,318 +1,157 @@
 package com.sistema.pedidos.service;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistema.pedidos.model.Profile;
+import com.sistema.pedidos.util.Db; // sua classe de conexão
 
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-
-/**
- * Serviço de gerenciamento de perfis
- */
 public class ProfileService {
-    
-    private final Map<Long, Profile> profiles = new HashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
 
-    public ProfileService() {
-        initializeDefaultProfiles();
-    }
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * Inicializa perfis padrão do sistema
-     */
-    private void initializeDefaultProfiles() {
-        // Perfil Administrador
-        Map<String, Boolean> adminPermissions = new HashMap<>();
-        adminPermissions.put("verDashboard", true);
-        adminPermissions.put("verPedidos", true);
-        adminPermissions.put("verClientes", true);
-        adminPermissions.put("verCardapio", true);
-        adminPermissions.put("criarEditarProduto", true);
-        adminPermissions.put("excluirProduto", true);
-        adminPermissions.put("desativarProduto", true);
-        adminPermissions.put("verChat", true);
-        adminPermissions.put("enviarChat", true);
-        adminPermissions.put("imprimirPedido", true);
-        adminPermissions.put("acessarEndereco", true);
-        adminPermissions.put("visualizarValorPedido", true);
-        adminPermissions.put("acompanharEntregas", true);
-        adminPermissions.put("gerarRelatorios", true);
-        adminPermissions.put("gerenciarPerfis", true);
-        adminPermissions.put("alterarStatusPedido", true);
-        adminPermissions.put("selecionarStatusEspecifico", true);
-        adminPermissions.put("criarUsuarios", true);
-        adminPermissions.put("editarUsuarios", true);
-        adminPermissions.put("excluirUsuarios", true);
-        
-        
+	/** CREATE */
+	public Profile create(Profile profile) throws Exception {
+		validateProfile(profile);
 
-        Profile admin = new Profile("Administrador", "Acesso completo ao sistema", adminPermissions);
-        admin.setId(idGenerator.getAndIncrement());
-        admin.setDefaultUsername("admin");
-        profiles.put(admin.getId(), admin);
+		if (findByName(profile.getName()) != null) {
+			throw new IllegalArgumentException("Já existe um perfil com este nome");
+		}
 
-        // Perfil Atendente
-        Map<String, Boolean> atendentePermissions = new HashMap<>();
-        atendentePermissions.put("verDashboard", true);
-        atendentePermissions.put("verPedidos", true);
-        atendentePermissions.put("verClientes", true);
-        atendentePermissions.put("alterarStatusPedido", true);
-        atendentePermissions.put("verChat", true);
-        atendentePermissions.put("imprimirPedido", true);
-        atendentePermissions.put("visualizarValorPedido", true);
-        atendentePermissions.put("acessarEndereco", true);
-        atendentePermissions.put("verCardapio", true);
-        atendentePermissions.put("criarEditarProduto", false);
-        atendentePermissions.put("excluirProduto", false);
-        atendentePermissions.put("desativarProduto", false);
-        atendentePermissions.put("gerarRelatorios", false);
-        atendentePermissions.put("gerenciarPerfis", false);
+		String sql = "INSERT INTO profiles (name, description, permissions, default_username) VALUES (?, ?, ?, ?)";
+		try (Connection conn = Db.getConnection();
+				PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-        Profile atendente = new Profile("Atendente", "Gerenciamento de pedidos e atendimento", atendentePermissions);
-        atendente.setId(idGenerator.getAndIncrement());
-        atendente.setDefaultUsername("atendente");
-        profiles.put(atendente.getId(), atendente);
+			stmt.setString(1, profile.getName());
+			stmt.setString(2, profile.getDescription());
+			stmt.setString(3, objectMapper.writeValueAsString(profile.getPermissions()));
+			stmt.setString(4, profile.getDefaultUsername());
+			stmt.executeUpdate();
 
-        // Perfil Entregador
-        Map<String, Boolean> entregadorPermissions = new HashMap<>();
-        entregadorPermissions.put("verDashboard", false);
-        entregadorPermissions.put("verPedidos", true);
-        entregadorPermissions.put("verClientes", false); // Entregadores não precisam ver clientes
-        entregadorPermissions.put("alterarStatusPedido", true);
-        entregadorPermissions.put("verChat", false);
-        entregadorPermissions.put("imprimirPedido", false);
-        entregadorPermissions.put("visualizarValorPedido", false);
-        entregadorPermissions.put("acessarEndereco", true);
-        entregadorPermissions.put("verCardapio", false);
-        entregadorPermissions.put("criarEditarProduto", false);
-        entregadorPermissions.put("excluirProduto", false);
-        entregadorPermissions.put("desativarProduto", false);
-        entregadorPermissions.put("gerarRelatorios", false);
-        entregadorPermissions.put("gerenciarPerfis", false);
+			try (ResultSet keys = stmt.getGeneratedKeys()) {
+				if (keys.next()) {
+					profile.setId(keys.getLong(1));
+				}
+			}
+		}
 
-        Profile entregador = new Profile("Entregador", "Visualização e atualização de status de entrega", entregadorPermissions);
-        entregador.setId(idGenerator.getAndIncrement());
-        entregador.setDefaultUsername("entregador");
-        profiles.put(entregador.getId(), entregador);
-    }
+		return profile;
+	}
 
-    /**
-     * Busca todos os perfis
-     */
-    public List<Profile> findAll() {
-        return new ArrayList<>(profiles.values());
-    }
+	/** READ */
+	public Profile findById(Long id) throws Exception {
+		String sql = "SELECT * FROM profiles WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Busca perfil por ID
-     */
-    public Profile findById(Long id) {
-        return profiles.get(id);
-    }
+			stmt.setLong(1, id);
+			try (ResultSet rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					return mapResultSetToProfile(rs);
+				}
+			}
+		}
+		return null;
+	}
 
-    /**
-     * Busca perfil por nome
-     */
-    public Profile findByName(String name) {
-        return profiles.values().stream()
-                .filter(profile -> profile.getName().equals(name))
-                .findFirst()
-                .orElse(null);
-    }
+	public Profile findByName(String name) throws Exception {
+		String sql = "SELECT * FROM profiles WHERE name = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Cria um novo perfil
-     */
-    public Profile create(Profile profile) {
-        // Validar dados
-        validateProfile(profile);
+			stmt.setString(1, name);
+			try (ResultSet rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					return mapResultSetToProfile(rs);
+				}
+			}
+		}
+		return null;
+	}
 
-        // Verificar se nome já existe
-        if (findByName(profile.getName()) != null) {
-            throw new IllegalArgumentException("Já existe um perfil com este nome");
-        }
+	public List<Profile> findAll() throws Exception {
+		String sql = "SELECT * FROM profiles";
+		List<Profile> profiles = new ArrayList<>();
+		try (Connection conn = Db.getConnection();
+				PreparedStatement stmt = conn.prepareStatement(sql);
+				ResultSet rs = stmt.executeQuery()) {
 
-        // Gerar ID e salvar
-        profile.setId(idGenerator.getAndIncrement());
-        profile.setCreatedAt(LocalDateTime.now());
-        profile.setUpdatedAt(LocalDateTime.now());
-        
-        profiles.put(profile.getId(), profile);
-        return profile;
-    }
+			while (rs.next()) {
+				profiles.add(mapResultSetToProfile(rs));
+			}
+		}
+		return profiles;
+	}
 
-    /**
-     * Atualiza um perfil existente
-     */
-    public Profile update(Long id, Profile updatedProfile) {
-        Profile existingProfile = findById(id);
-        if (existingProfile == null) {
-            throw new IllegalArgumentException("Perfil não encontrado");
-        }
+	/** UPDATE */
+	public Profile update(Long id, Profile updatedProfile) throws Exception {
+		Profile existingProfile = findById(id);
+		if (existingProfile == null)
+			throw new IllegalArgumentException("Perfil não encontrado");
 
-        // Verificar se novo nome já existe (se foi alterado)
-        if (!existingProfile.getName().equals(updatedProfile.getName())) {
-            Profile profileWithSameName = findByName(updatedProfile.getName());
-            if (profileWithSameName != null && !profileWithSameName.getId().equals(id)) {
-                throw new IllegalArgumentException("Já existe um perfil com este nome");
-            }
-        }
+		if (!existingProfile.getName().equals(updatedProfile.getName())
+				&& findByName(updatedProfile.getName()) != null) {
+			throw new IllegalArgumentException("Já existe um perfil com este nome");
+		}
 
-        // Atualizar campos
-        if (updatedProfile.getName() != null) {
-            existingProfile.setName(updatedProfile.getName());
-        }
-        if (updatedProfile.getDescription() != null) {
-            existingProfile.setDescription(updatedProfile.getDescription());
-        }
-        if (updatedProfile.getPermissions() != null) {
-            existingProfile.setPermissions(updatedProfile.getPermissions());
-        }
-        
-        existingProfile.setUpdatedAt(LocalDateTime.now());
+		String sql = "UPDATE profiles SET name = ?, description = ?, permissions = ?, default_username = ?, updated_at = NOW() WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        return existingProfile;
-    }
+			stmt.setString(1, updatedProfile.getName());
+			stmt.setString(2, updatedProfile.getDescription());
+			stmt.setString(3, objectMapper.writeValueAsString(updatedProfile.getPermissions()));
+			stmt.setString(4, updatedProfile.getDefaultUsername());
+			stmt.setLong(5, id);
+			stmt.executeUpdate();
+		}
 
-    /**
-     * Remove um perfil
-     */
-    public boolean delete(Long id) {
-        Profile profile = findById(id);
-        if (profile == null) {
-            return false;
-        }
+		return findById(id);
+	}
 
-        // Não permitir exclusão de perfis padrão
-        if (id <= 3) { // IDs 1, 2, 3 são perfis padrão
-            throw new IllegalArgumentException("Não é possível excluir perfis padrão do sistema");
-        }
+	/** DELETE */
+	public boolean delete(Long id) throws Exception {
+		Profile profile = findById(id);
+		if (profile == null)
+			return false;
+		if (id <= 3)
+			throw new IllegalArgumentException("Não é possível excluir perfis padrão do sistema");
 
-        profiles.remove(id);
-        return true;
-    }
+		String sql = "DELETE FROM profiles WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Obtém perfis disponíveis para acesso rápido
-     */
-    public List<Profile> getQuickAccessProfiles() {
-        return profiles.values().stream()
-                .filter(profile -> profile.getDefaultUsername() != null)
-                .sorted((p1, p2) -> p1.getName().compareTo(p2.getName()))
-                .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
-    }
+			stmt.setLong(1, id);
+			return stmt.executeUpdate() > 0;
+		}
+	}
 
-    /**
-     * Verifica se um perfil tem uma permissão específica
-     */
-    public boolean hasPermission(Long profileId, String permission) {
-        Profile profile = findById(profileId);
-        return profile != null && profile.hasPermission(permission);
-    }
+	/** HELPER: converte ResultSet em Profile */
+	private Profile mapResultSetToProfile(ResultSet rs) throws Exception {
+		Profile profile = new Profile();
+		profile.setId(rs.getLong("id"));
+		profile.setName(rs.getString("name"));
+		profile.setDescription(rs.getString("description"));
+		profile.setDefaultUsername(rs.getString("default_username"));
+		String permJson = rs.getString("permissions");
+		Map<String, Boolean> permissions = objectMapper.readValue(permJson, new TypeReference<Map<String, Boolean>>() {
+		});
+		profile.setPermissions(permissions);
+		profile.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
+		profile.setUpdatedAt(rs.getTimestamp("updated_at").toLocalDateTime());
+		return profile;
+	}
 
-    /**
-     * Obtém todas as permissões disponíveis no sistema
-     */
-    public Map<String, String> getAvailablePermissions() {
-        Map<String, String> permissions = new LinkedHashMap<>();
-        
-        // Dashboard
-        permissions.put("verDashboard", "Ver Dashboard");
-        
-        // Pedidos
-        permissions.put("verPedidos", "Ver Pedidos");
-        permissions.put("verClientes", "Ver Clientes");
-        permissions.put("alterarStatusPedido", "Alterar Status dos Pedidos");
-        permissions.put("verChat", "Ver Chat dos Pedidos");
-        permissions.put("imprimirPedido", "Imprimir Pedidos");
-        permissions.put("visualizarValorPedido", "Visualizar Valores dos Pedidos");
-        permissions.put("acessarEndereco", "Acessar Endereços");
-        
-        // Cardápio
-        permissions.put("verCardapio", "Ver Cardápio");
-        permissions.put("criarEditarProduto", "Criar/Editar Produtos");
-        permissions.put("excluirProduto", "Excluir Produtos");
-        permissions.put("desativarProduto", "Ativar/Desativar Produtos");
-        
-        // Relatórios
-        permissions.put("gerarRelatorios", "Gerar Relatórios");
-        
-        // Sistema
-        permissions.put("gerenciarPerfis", "Gerenciar Perfis e Usuários");
-        
-        return permissions;
-    }
-
-    /**
-     * Cria um perfil com permissões padrão
-     */
-    public Profile createWithDefaultPermissions(String name, String description, String level) {
-        Map<String, Boolean> permissions = new HashMap<>();
-        
-        switch (level.toLowerCase()) {
-            case "admin":
-                getAvailablePermissions().keySet().forEach(perm -> permissions.put(perm, true));
-                break;
-            case "manager":
-                permissions.put("verDashboard", true);
-                permissions.put("verPedidos", true);
-                permissions.put("alterarStatusPedido", true);
-                permissions.put("verChat", true);
-                permissions.put("imprimirPedido", true);
-                permissions.put("visualizarValorPedido", true);
-                permissions.put("acessarEndereco", true);
-                permissions.put("verCardapio", true);
-                permissions.put("gerarRelatorios", true);
-                break;
-            case "operator":
-                permissions.put("verPedidos", true);
-                permissions.put("alterarStatusPedido", true);
-                permissions.put("verChat", true);
-                permissions.put("imprimirPedido", true);
-                permissions.put("verCardapio", true);
-                break;
-            default:
-                // Perfil básico - apenas visualização
-                permissions.put("verPedidos", true);
-                permissions.put("verCardapio", true);
-                break;
-        }
-        
-        Profile profile = new Profile(name, description, permissions);
-        return create(profile);
-    }
-
-    /**
-     * Obtém estatísticas dos perfis
-     */
-    public Map<String, Object> getProfileStats() {
-        Map<String, Object> stats = new HashMap<>();
-        
-        List<Profile> allProfiles = findAll();
-        
-        stats.put("totalProfiles", allProfiles.size());
-        stats.put("defaultProfiles", 3); // Admin, Atendente, Entregador
-        stats.put("customProfiles", allProfiles.size() - 3);
-        
-        return stats;
-    }
-
-    /**
-     * Valida os dados do perfil
-     */
-    private void validateProfile(Profile profile) {
-        if (profile == null) {
-            throw new IllegalArgumentException("Perfil não pode ser nulo");
-        }
-        
-        if (profile.getName() == null || profile.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Nome do perfil é obrigatório");
-        }
-        
-        if (profile.getPermissions() == null || profile.getPermissions().isEmpty()) {
-            throw new IllegalArgumentException("Perfil deve ter pelo menos uma permissão");
-        }
-    }
+	/** Validação do perfil */
+	private void validateProfile(Profile profile) {
+		if (profile == null)
+			throw new IllegalArgumentException("Perfil não pode ser nulo");
+		if (profile.getName() == null || profile.getName().trim().isEmpty())
+			throw new IllegalArgumentException("Nome do perfil é obrigatório");
+		if (profile.getPermissions() == null || profile.getPermissions().isEmpty())
+			throw new IllegalArgumentException("Perfil deve ter pelo menos uma permissão");
+	}
 }
-

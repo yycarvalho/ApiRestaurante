@@ -1277,3 +1277,57 @@ body {
     margin-bottom: 16px;
 }
 
+/* Estilos para o conteúdo rolável nos modais */
+.scrollable-content {
+    padding: 10px;
+    background-color: #f0f2f5; /* Um fundo leve para diferenciar */
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+/* Estilos para a lista de pedidos do cliente */
+.customer-orders-list .customer-order-item {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    transition: box-shadow 0.2s;
+}
+
+.customer-orders-list .customer-order-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.customer-orders-list .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.customer-orders-list .order-id {
+    font-weight: bold;
+    color: #333;
+}
+
+/* Estilos para o chat do cliente (reutilizando classes existentes) */
+.chat-messages-customer .chat-message {
+    margin-bottom: 12px;
+}
+
+.chat-messages-customer .message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8em;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.chat-messages-customer .message-order {
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+

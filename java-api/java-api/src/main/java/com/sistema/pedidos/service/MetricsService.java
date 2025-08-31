@@ -35,7 +35,13 @@ public class MetricsService {
 	public Map<String, Object> getDashboardMetrics() {
 		Map<String, Object> metrics = new HashMap<>();
 
-		List<Order> allOrders = orderService.findAll();
+		List<Order> allOrders = null;
+		try {
+			allOrders = orderService.findAll();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		LocalDateTime today = LocalDateTime.now();
 		LocalDateTime startOfDay = today.withHour(0).withMinute(0).withSecond(0);
 		LocalDateTime endOfDay = today.withHour(23).withMinute(59).withSecond(59);
@@ -54,7 +60,7 @@ public class MetricsService {
 				.collect(Collectors.groupingBy(Order::getStatus, Collectors.counting()));
 
 		// Faturamento mensal (últimos 6 meses)
-		List<BigDecimal> faturamentoMensal = calculateMonthlyRevenue(6);
+		List<BigDecimal> faturamentoMensal = calculateMonthlyRevenue(12);
 
 		metrics.put("totalPedidosHoje", ordersToday.size());
 		metrics.put("valorTotalArrecadado", valorTotalArrecadado);
@@ -73,7 +79,13 @@ public class MetricsService {
 		LocalDateTime endDate = LocalDateTime.now();
 		LocalDateTime startDate = calculateStartDate(period, endDate);
 
-		List<Order> ordersInPeriod = orderService.findByDateRange(startDate, endDate);
+		List<Order> ordersInPeriod = null;
+		try {
+			ordersInPeriod = orderService.findByDateRange(startDate, endDate);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		List<Order> finishedOrders = ordersInPeriod.stream().filter(order -> "finalizado".equals(order.getStatus()))
 				.collect(Collectors.toList());
 
@@ -86,7 +98,13 @@ public class MetricsService {
 		// Comparação com período anterior
 		LocalDateTime previousEndDate = startDate.minusDays(1);
 		LocalDateTime previousStartDate = calculateStartDate(period, previousEndDate);
-		List<Order> previousOrders = orderService.findByDateRange(previousStartDate, previousEndDate);
+		List<Order> previousOrders = null;
+		try {
+			previousOrders = orderService.findByDateRange(previousStartDate, previousEndDate);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		reports.put("pedidosChange", calculatePercentageChange(ordersInPeriod.size(), previousOrders.size()));
 		reports.put("faturamentoChange", calculateRevenueChange(finishedOrders, previousOrders));
@@ -109,19 +127,46 @@ public class MetricsService {
 	/**
 	 * Calcula faturamento mensal
 	 */
-	private List<BigDecimal> calculateMonthlyRevenue(int months) {
+
+	public List<BigDecimal> calculateMonthlyRevenue(int months) {
 		List<BigDecimal> revenue = new ArrayList<>();
+		Map<Integer, BigDecimal> monthlyData = new HashMap<>(); // Mês (1-12) -> Revenue
 		LocalDateTime now = LocalDateTime.now();
 
+		// Coleta dados dos últimos meses
 		for (int i = months - 1; i >= 0; i--) {
-			LocalDateTime monthStart = now.minusMonths(i).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
-			LocalDateTime monthEnd = monthStart.plusMonths(1).minusDays(1).withHour(23).withMinute(59).withSecond(59);
+			LocalDateTime targetMonth = now.minusMonths(i);
 
-			List<Order> monthOrders = orderService.findByDateRange(monthStart, monthEnd);
+			LocalDateTime monthStart = targetMonth.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0)
+					.withNano(0);
+
+			LocalDateTime monthEnd = monthStart.plusMonths(1).minusSeconds(1);
+
+			List<Order> monthOrders = null;
+			try {
+				monthOrders = orderService.findByDateRange(monthStart, monthEnd);
+			} catch (Exception e) {
+				e.printStackTrace();
+				monthOrders = new ArrayList<>();
+			}
+
 			BigDecimal monthRevenue = monthOrders.stream().filter(order -> "finalizado".equals(order.getStatus()))
 					.map(Order::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
 
+			int monthNumber = targetMonth.getMonthValue();
+			monthlyData.put(monthNumber, monthlyData.getOrDefault(monthNumber, BigDecimal.ZERO).add(monthRevenue));
+		}
+
+		// Organiza por ordem de mês (Janeiro a Dezembro)
+		String[] monthNames = { "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER",
+				"OCTOBER", "NOVEMBER", "DECEMBER" };
+
+		for (int month = 1; month <= 12; month++) {
+			BigDecimal monthRevenue = monthlyData.getOrDefault(month, BigDecimal.ZERO);
 			revenue.add(monthRevenue);
+
+			// Log para debug
+			System.out.println("Mês " + monthNames[month - 1] + " - Revenue: " + monthRevenue);
 		}
 
 		return revenue;
@@ -270,7 +315,13 @@ public class MetricsService {
 				label = pointStart.format(DateTimeFormatter.ofPattern("MMM"));
 			}
 
-			List<Order> periodOrders = orderService.findByDateRange(pointStart, pointEnd);
+			List<Order> periodOrders = null;
+			try {
+				periodOrders = orderService.findByDateRange(pointStart, pointEnd);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 			BigDecimal periodRevenue = periodOrders.stream().filter(order -> "finalizado".equals(order.getStatus()))
 					.map(Order::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -419,8 +470,13 @@ public class MetricsService {
 
 		// Mapear produtos por categoria
 		Map<Long, String> productCategories = new HashMap<>();
-		for (Product product : productService.findAll()) {
-			productCategories.put(product.getId(), product.getCategory());
+		try {
+			for (Product product : productService.findAll()) {
+				productCategories.put(product.getId(), product.getCategory());
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 
 		// Calcular dados por categoria

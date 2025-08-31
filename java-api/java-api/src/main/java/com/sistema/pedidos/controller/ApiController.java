@@ -17,6 +17,7 @@ import com.sistema.pedidos.dto.LoginRequest;
 import com.sistema.pedidos.dto.LoginResponse;
 import com.sistema.pedidos.model.Customer;
 import com.sistema.pedidos.model.Order;
+import com.sistema.pedidos.model.Order.ChatMessage;
 import com.sistema.pedidos.model.Product;
 import com.sistema.pedidos.model.Profile;
 import com.sistema.pedidos.model.User;
@@ -85,6 +86,9 @@ public class ApiController {
 		server.createContext("/api/metrics/dashboard", new DashboardMetricsHandler());
 		server.createContext("/api/metrics/reports", new ReportsHandler());
 		server.createContext("/api/clientes", new CustomersHandler());
+
+		server.createContext("/api/chat/send", new ChatSendHandler());
+		server.createContext("/api/chat/messages", new ChatShowHandler());
 
 		// Handler para CORS
 		server.createContext("/", new CorsHandler());
@@ -765,13 +769,109 @@ public class ApiController {
 					}
 					Customer saved = customerService.upsertByPhone(name, phone);
 
-					String token = extractToken(exchange);
-					User userFromToken = authService.getUserFromToken(token);
+					User userFromToken = getUser(exchange);
 
 					ActionLogger.log("INFO", "cliente_upsert", "SAVE CLIENT", userFromToken.getName(),
 							userFromToken.getId(), exchange.getRemoteAddress().getAddress().getHostAddress(), body);
 
 					sendJsonResponse(exchange, 201, saved);
+					break;
+				default:
+					sendJsonResponse(exchange, 405, ApiResponse.error("Método não permitido"));
+				}
+			} catch (NumberFormatException e) {
+				sendJsonResponse(exchange, 400, ApiResponse.error("ID inválido"));
+			} catch (Exception e) {
+				e.printStackTrace();
+				sendJsonResponse(exchange, 500, ApiResponse.error("Erro interno do servidor: " + e.getMessage()));
+			}
+		}
+	}
+
+	private class ChatShowHandler implements HttpHandler {
+		@Override
+		public void handle(HttpExchange exchange) throws IOException {
+			addCorsHeaders(exchange);
+
+			if ("OPTIONS".equals(exchange.getRequestMethod())) {
+				exchange.sendResponseHeaders(200, 0);
+				exchange.close();
+				return;
+			}
+
+			if (!isAuthenticated(exchange)) {
+				sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
+				return;
+			}
+
+			String method = exchange.getRequestMethod();
+			String path = exchange.getRequestURI().getPath();
+
+			try {
+				switch (method) {
+				case "GET":
+					System.out.println(path);
+					// /api/clientes or /api/clientes/{id}
+					String[] parts = path.split("/");
+
+					if (parts.length >= 3) {
+						Order findById = orderService.findById(parts[4]);
+						List<ChatMessage> chat = findById.getChat();
+						sendJsonResponse(exchange, 200, chat);
+					}
+					break;
+				default:
+					sendJsonResponse(exchange, 405, ApiResponse.error("Método não permitido"));
+				}
+			} catch (NumberFormatException e) {
+				sendJsonResponse(exchange, 400, ApiResponse.error("ID inválido"));
+			} catch (Exception e) {
+				e.printStackTrace();
+				sendJsonResponse(exchange, 500, ApiResponse.error("Erro interno do servidor: " + e.getMessage()));
+			}
+		}
+	}
+
+	private class ChatSendHandler implements HttpHandler {
+		@Override
+		public void handle(HttpExchange exchange) throws IOException {
+			addCorsHeaders(exchange);
+
+			if ("OPTIONS".equals(exchange.getRequestMethod())) {
+				exchange.sendResponseHeaders(200, 0);
+				exchange.close();
+				return;
+			}
+
+			if (!isAuthenticated(exchange)) {
+				sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
+				return;
+			}
+
+			String method = exchange.getRequestMethod();
+			String path = exchange.getRequestURI().getPath();
+
+			System.out.println(path);
+
+			try {
+				switch (method) {
+				case "POST":
+					// /api/clientes or /api/clientes/{id}
+					String body = readRequestBody(exchange);
+					Map data = objectMapper.readValue(body, Map.class);
+					String clientId = (String) data.get("clientId");
+					String message = (String) data.get("message");
+					String orderId = (String) data.get("orderId");
+					String senderId = (String) data.get("senderId");
+					String phone = (String) data.get("phone");
+
+					User user = getUser(exchange);
+
+					message = user.getName() + ": " + message;
+
+					orderService.addChatMessage(orderId, message, "user");
+
+					sendJsonResponse(exchange, 200, ApiResponse.error("Método não encontrado"));
 					break;
 				default:
 					sendJsonResponse(exchange, 405, ApiResponse.error("Método não permitido"));

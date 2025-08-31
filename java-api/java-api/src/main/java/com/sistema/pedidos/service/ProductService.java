@@ -1,326 +1,225 @@
 package com.sistema.pedidos.service;
 
-import com.sistema.pedidos.model.Product;
-
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
-/**
- * Serviço de gerenciamento de produtos
- */
+import com.sistema.pedidos.model.Product;
+import com.sistema.pedidos.util.Db;
+
 public class ProductService {
-    
-    private final Map<Long, Product> products = new HashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
 
-    public ProductService() {
-        initializeDefaultProducts();
-    }
+	/** CREATE */
+	public Product create(Product product) throws Exception {
+		validateProduct(product);
 
-    /**
-     * Inicializa produtos padrão do sistema
-     */
-    private void initializeDefaultProducts() {
-        // Lanches
-        createProduct("X-Burger Clássico", "Hambúrguer, queijo, alface, tomate e molho especial", 
-                     new BigDecimal("15.90"), "lanches");
-        createProduct("X-Bacon", "Hambúrguer, bacon, queijo, alface, tomate e molho especial", 
-                     new BigDecimal("18.90"), "lanches");
-        createProduct("X-Tudo", "Hambúrguer duplo, bacon, queijo, ovo, alface, tomate e molho especial", 
-                     new BigDecimal("22.90"), "lanches");
-        createProduct("X-Frango", "Filé de frango grelhado, queijo, alface, tomate e maionese", 
-                     new BigDecimal("16.90"), "lanches");
+		if (findByName(product.getName()) != null) {
+			throw new IllegalArgumentException("Já existe um produto com este nome");
+		}
 
-        // Bebidas
-        createProduct("Coca-Cola 350ml", "Refrigerante Coca-Cola lata 350ml", 
-                     new BigDecimal("4.50"), "bebidas");
-        createProduct("Guaraná Antarctica 350ml", "Refrigerante Guaraná Antarctica lata 350ml", 
-                     new BigDecimal("4.50"), "bebidas");
-        createProduct("Suco de Laranja 300ml", "Suco natural de laranja 300ml", 
-                     new BigDecimal("6.00"), "bebidas");
-        createProduct("Água Mineral 500ml", "Água mineral sem gás 500ml", 
-                     new BigDecimal("3.00"), "bebidas");
+		String sql = "INSERT INTO products (name, description, price, category, active) VALUES (?, ?, ?, ?, ?)";
+		try (Connection conn = Db.getConnection();
+				PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-        // Acompanhamentos
-        createProduct("Batata Frita", "Porção de batata frita crocante", 
-                     new BigDecimal("8.90"), "acompanhamentos");
-        createProduct("Onion Rings", "Anéis de cebola empanados e fritos", 
-                     new BigDecimal("9.90"), "acompanhamentos");
-        createProduct("Nuggets (10 unidades)", "Nuggets de frango empanados", 
-                     new BigDecimal("12.90"), "acompanhamentos");
+			stmt.setString(1, product.getName());
+			stmt.setString(2, product.getDescription());
+			stmt.setBigDecimal(3, product.getPrice());
+			stmt.setString(4, product.getCategory());
+			stmt.setBoolean(5, product.isActive());
+			stmt.executeUpdate();
 
-        // Sobremesas
-        createProduct("Milkshake de Chocolate", "Milkshake cremoso sabor chocolate", 
-                     new BigDecimal("8.90"), "sobremesas");
-        createProduct("Milkshake de Morango", "Milkshake cremoso sabor morango", 
-                     new BigDecimal("8.90"), "sobremesas");
-        createProduct("Sorvete 2 Bolas", "Sorvete de baunilha e chocolate", 
-                     new BigDecimal("7.50"), "sobremesas");
-    }
+			try (ResultSet keys = stmt.getGeneratedKeys()) {
+				if (keys.next()) {
+					product.setId(keys.getLong(1));
+				}
+			}
+		}
 
-    /**
-     * Método auxiliar para criar produtos iniciais
-     */
-    private void createProduct(String name, String description, BigDecimal price, String category) {
-        Product product = new Product(name, description, price, category);
-        product.setId(idGenerator.getAndIncrement());
-        products.put(product.getId(), product);
-    }
+		return findById(product.getId()); // retorna com createdAt/updatedAt preenchidos
+	}
 
-    /**
-     * Busca todos os produtos
-     */
-    public List<Product> findAll() {
-        return new ArrayList<>(products.values());
-    }
+	/** READ */
+	public Product findById(Long id) throws Exception {
+		String sql = "SELECT * FROM products WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Busca produto por ID
-     */
-    public Product findById(Long id) {
-        return products.get(id);
-    }
+			stmt.setLong(1, id);
+			try (ResultSet rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					return mapResultSetToProduct(rs);
+				}
+			}
+		}
+		return null;
+	}
 
-    /**
-     * Busca produtos por categoria
-     */
-    public List<Product> findByCategory(String category) {
-        return products.values().stream()
-                .filter(product -> product.getCategory().equals(category))
-                .collect(Collectors.toList());
-    }
+	public Product findByName(String name) throws Exception {
+		String sql = "SELECT * FROM products WHERE LOWER(name) = LOWER(?)";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Busca produtos ativos
-     */
-    public List<Product> findActiveProducts() {
-        return products.values().stream()
-                .filter(Product::isActive)
-                .collect(Collectors.toList());
-    }
+			stmt.setString(1, name);
+			try (ResultSet rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					return mapResultSetToProduct(rs);
+				}
+			}
+		}
+		return null;
+	}
 
-    /**
-     * Busca produtos por nome (busca parcial)
-     */
-    public List<Product> findByNameContaining(String name) {
-        return products.values().stream()
-                .filter(product -> product.getName().toLowerCase().contains(name.toLowerCase()))
-                .collect(Collectors.toList());
-    }
+	public List<Product> findAll() throws Exception {
+		String sql = "SELECT * FROM products";
+		List<Product> products = new ArrayList<>();
+		try (Connection conn = Db.getConnection();
+				PreparedStatement stmt = conn.prepareStatement(sql);
+				ResultSet rs = stmt.executeQuery()) {
 
-    /**
-     * Cria um novo produto
-     */
-    public Product create(Product product) {
-        // Validar dados
-        validateProduct(product);
+			while (rs.next()) {
+				products.add(mapResultSetToProduct(rs));
+			}
+		}
+		return products;
+	}
 
-        // Verificar se nome já existe
-        if (findByNameContaining(product.getName()).stream()
-                .anyMatch(p -> p.getName().equalsIgnoreCase(product.getName()))) {
-            throw new IllegalArgumentException("Já existe um produto com este nome");
-        }
+	public List<Product> findByCategory(String category) throws Exception {
+		String sql = "SELECT * FROM products WHERE category = ?";
+		List<Product> products = new ArrayList<>();
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        // Gerar ID e salvar
-        product.setId(idGenerator.getAndIncrement());
-        product.setCreatedAt(LocalDateTime.now());
-        product.setUpdatedAt(LocalDateTime.now());
-        
-        products.put(product.getId(), product);
-        return product;
-    }
+			stmt.setString(1, category);
+			try (ResultSet rs = stmt.executeQuery()) {
+				while (rs.next()) {
+					products.add(mapResultSetToProduct(rs));
+				}
+			}
+		}
+		return products;
+	}
 
-    /**
-     * Atualiza um produto existente
-     */
-    public Product update(Long id, Product updatedProduct) {
-        Product existingProduct = findById(id);
-        if (existingProduct == null) {
-            throw new IllegalArgumentException("Produto não encontrado");
-        }
+	public List<Product> findActiveProducts() throws Exception {
+		String sql = "SELECT * FROM products WHERE active = 1";
+		List<Product> products = new ArrayList<>();
+		try (Connection conn = Db.getConnection();
+				PreparedStatement stmt = conn.prepareStatement(sql);
+				ResultSet rs = stmt.executeQuery()) {
 
-        // Verificar se novo nome já existe (se foi alterado)
-        if (!existingProduct.getName().equalsIgnoreCase(updatedProduct.getName())) {
-            if (findByNameContaining(updatedProduct.getName()).stream()
-                    .anyMatch(p -> p.getName().equalsIgnoreCase(updatedProduct.getName()) && !p.getId().equals(id))) {
-                throw new IllegalArgumentException("Já existe um produto com este nome");
-            }
-        }
+			while (rs.next()) {
+				products.add(mapResultSetToProduct(rs));
+			}
+		}
+		return products;
+	}
 
-        // Atualizar campos
-        if (updatedProduct.getName() != null) {
-            existingProduct.setName(updatedProduct.getName());
-        }
-        if (updatedProduct.getDescription() != null) {
-            existingProduct.setDescription(updatedProduct.getDescription());
-        }
-        if (updatedProduct.getPrice() != null) {
-            existingProduct.setPrice(updatedProduct.getPrice());
-        }
-        if (updatedProduct.getCategory() != null) {
-            existingProduct.setCategory(updatedProduct.getCategory());
-        }
-        
-        existingProduct.setActive(updatedProduct.isActive());
-        existingProduct.setUpdatedAt(LocalDateTime.now());
+	public List<Product> findByNameContaining(String name) throws Exception {
+		String sql = "SELECT * FROM products WHERE LOWER(name) LIKE LOWER(?)";
+		List<Product> products = new ArrayList<>();
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        return existingProduct;
-    }
+			stmt.setString(1, "%" + name + "%");
+			try (ResultSet rs = stmt.executeQuery()) {
+				while (rs.next()) {
+					products.add(mapResultSetToProduct(rs));
+				}
+			}
+		}
+		return products;
+	}
 
-    /**
-     * Remove um produto
-     */
-    public boolean delete(Long id) {
-        Product product = findById(id);
-        if (product == null) {
-            return false;
-        }
+	/** UPDATE */
+	public Product update(Long id, Product updatedProduct) throws Exception {
+		Product existing = findById(id);
+		if (existing == null)
+			throw new IllegalArgumentException("Produto não encontrado");
 
-        products.remove(id);
-        return true;
-    }
+		if (!existing.getName().equalsIgnoreCase(updatedProduct.getName())
+				&& findByName(updatedProduct.getName()) != null) {
+			throw new IllegalArgumentException("Já existe um produto com este nome");
+		}
 
-    /**
-     * Altera status de um produto
-     */
-    public Product toggleProductStatus(Long id) {
-        Product product = findById(id);
-        if (product == null) {
-            throw new IllegalArgumentException("Produto não encontrado");
-        }
+		String sql = "UPDATE products SET name = ?, description = ?, price = ?, category = ?, active = ?, updated_at = NOW() WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        product.setActive(!product.isActive());
-        product.setUpdatedAt(LocalDateTime.now());
-        
-        return product;
-    }
+			stmt.setString(1, updatedProduct.getName());
+			stmt.setString(2, updatedProduct.getDescription());
+			stmt.setBigDecimal(3, updatedProduct.getPrice());
+			stmt.setString(4, updatedProduct.getCategory());
+			stmt.setBoolean(5, updatedProduct.isActive());
+			stmt.setLong(6, id);
+			stmt.executeUpdate();
+		}
 
-    /**
-     * Obtém produtos por faixa de preço
-     */
-    public List<Product> findByPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
-        return products.values().stream()
-                .filter(product -> product.getPrice().compareTo(minPrice) >= 0 && 
-                                 product.getPrice().compareTo(maxPrice) <= 0)
-                .collect(Collectors.toList());
-    }
+		return findById(id);
+	}
 
-    /**
-     * Obtém categorias disponíveis
-     */
-    public List<String> getAvailableCategories() {
-        return Arrays.asList("lanches", "bebidas", "acompanhamentos", "sobremesas");
-    }
+	/** DELETE */
+	public boolean delete(Long id) throws Exception {
+		String sql = "DELETE FROM products WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Obtém produtos mais vendidos (simulado)
-     */
-    public List<Product> getMostSoldProducts(int limit) {
-        // Simulação baseada no ID (produtos com ID menor são "mais vendidos")
-        return products.values().stream()
-                .filter(Product::isActive)
-                .sorted((p1, p2) -> p1.getId().compareTo(p2.getId()))
-                .limit(limit)
-                .collect(Collectors.toList());
-    }
+			stmt.setLong(1, id);
+			return stmt.executeUpdate() > 0;
+		}
+	}
 
-    /**
-     * Obtém estatísticas dos produtos
-     */
-    public Map<String, Object> getProductStats() {
-        Map<String, Object> stats = new HashMap<>();
-        
-        List<Product> allProducts = findAll();
-        long activeProducts = allProducts.stream().filter(Product::isActive).count();
-        long inactiveProducts = allProducts.size() - activeProducts;
-        
-        // Contagem por categoria
-        Map<String, Long> productsByCategory = allProducts.stream()
-                .collect(Collectors.groupingBy(Product::getCategory, Collectors.counting()));
-        
-        // Preço médio
-        OptionalDouble averagePrice = allProducts.stream()
-                .filter(Product::isActive)
-                .mapToDouble(product -> product.getPrice().doubleValue())
-                .average();
-        
-        // Produto mais caro e mais barato
-        Optional<Product> mostExpensive = allProducts.stream()
-                .filter(Product::isActive)
-                .max((p1, p2) -> p1.getPrice().compareTo(p2.getPrice()));
-        
-        Optional<Product> cheapest = allProducts.stream()
-                .filter(Product::isActive)
-                .min((p1, p2) -> p1.getPrice().compareTo(p2.getPrice()));
-        
-        stats.put("totalProducts", allProducts.size());
-        stats.put("activeProducts", activeProducts);
-        stats.put("inactiveProducts", inactiveProducts);
-        stats.put("productsByCategory", productsByCategory);
-        stats.put("averagePrice", averagePrice.orElse(0.0));
-        stats.put("mostExpensiveProduct", mostExpensive.orElse(null));
-        stats.put("cheapestProduct", cheapest.orElse(null));
-        
-        return stats;
-    }
+	/** TOGGLE STATUS */
+	public Product toggleProductStatus(Long id) throws Exception {
+		Product product = findById(id);
+		if (product == null)
+			throw new IllegalArgumentException("Produto não encontrado");
 
-    /**
-     * Busca produtos com filtros avançados
-     */
-    public List<Product> findWithFilters(String name, String category, BigDecimal minPrice, 
-                                       BigDecimal maxPrice, Boolean active) {
-        return products.values().stream()
-                .filter(product -> {
-                    if (name != null && !product.getName().toLowerCase().contains(name.toLowerCase())) {
-                        return false;
-                    }
-                    if (category != null && !product.getCategory().equals(category)) {
-                        return false;
-                    }
-                    if (minPrice != null && product.getPrice().compareTo(minPrice) < 0) {
-                        return false;
-                    }
-                    if (maxPrice != null && product.getPrice().compareTo(maxPrice) > 0) {
-                        return false;
-                    }
-                    if (active != null && product.isActive() != active) {
-                        return false;
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
-    }
+		String sql = "UPDATE products SET active = ?, updated_at = NOW() WHERE id = ?";
+		try (Connection conn = Db.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    /**
-     * Valida os dados do produto
-     */
-    private void validateProduct(Product product) {
-        if (product == null) {
-            throw new IllegalArgumentException("Produto não pode ser nulo");
-        }
-        
-        if (product.getName() == null || product.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Nome do produto é obrigatório");
-        }
-        
-        if (product.getDescription() == null || product.getDescription().trim().isEmpty()) {
-            throw new IllegalArgumentException("Descrição do produto é obrigatória");
-        }
-        
-        if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Preço deve ser maior que zero");
-        }
-        
-        if (product.getCategory() == null || product.getCategory().trim().isEmpty()) {
-            throw new IllegalArgumentException("Categoria é obrigatória");
-        }
-        
-        if (!getAvailableCategories().contains(product.getCategory())) {
-            throw new IllegalArgumentException("Categoria inválida");
-        }
-    }
+			stmt.setBoolean(1, !product.isActive());
+			stmt.setLong(2, id);
+			stmt.executeUpdate();
+		}
+
+		return findById(id);
+	}
+
+	/** HELPERS */
+	private Product mapResultSetToProduct(ResultSet rs) throws Exception {
+		Product product = new Product();
+		product.setId(rs.getLong("id"));
+		product.setName(rs.getString("name"));
+		product.setDescription(rs.getString("description"));
+		product.setPrice(rs.getBigDecimal("price"));
+		product.setCategory(rs.getString("category"));
+		product.setActive(rs.getBoolean("active"));
+
+		Timestamp createdAt = rs.getTimestamp("created_at");
+		if (createdAt != null)
+			product.setCreatedAt(createdAt.toLocalDateTime());
+
+		Timestamp updatedAt = rs.getTimestamp("updated_at");
+		if (updatedAt != null)
+			product.setUpdatedAt(updatedAt.toLocalDateTime());
+
+		return product;
+	}
+
+	private void validateProduct(Product product) {
+		if (product == null)
+			throw new IllegalArgumentException("Produto não pode ser nulo");
+		if (product.getName() == null || product.getName().trim().isEmpty())
+			throw new IllegalArgumentException("Nome do produto é obrigatório");
+		if (product.getDescription() == null || product.getDescription().trim().isEmpty())
+			throw new IllegalArgumentException("Descrição do produto é obrigatória");
+		if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("Preço deve ser maior que zero");
+		if (product.getCategory() == null || product.getCategory().trim().isEmpty())
+			throw new IllegalArgumentException("Categoria é obrigatória");
+
+		List<String> categorias = Arrays.asList("lanches", "bebidas", "acompanhamentos", "sobremesas");
+		if (!categorias.contains(product.getCategory())) {
+			throw new IllegalArgumentException("Categoria inválida");
+		}
+	}
 }
-

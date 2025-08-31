@@ -721,7 +721,7 @@ class SistemaPedidos {
                     <canvas id="statusChart"></canvas>
                 </div>
                 <div class="chart-container">
-                    <h3>Faturamento Mensal (Simulado)</h3>
+                    <h3>Faturamento Mensal</h3>
                     <canvas id="revenueChart"></canvas>
                 </div>
             </div>
@@ -1066,20 +1066,35 @@ class SistemaPedidos {
                 
                 <div class="tab-content">
                     <div class="tab-pane active" data-tab="orders">
-                        ${this.renderCustomerOrders(orders)}
+                        <div class="scrollable-content" style="max-height: 300px; overflow-y: auto;">
+                            ${this.renderCustomerOrders(orders)}
+                        </div>
                     </div>
                     <div class="tab-pane" data-tab="conversations">
-                        ${this.renderCustomerConversations(messages)}
+                        <div class="scrollable-content" style="max-height: 300px; overflow-y: auto;" id="customerChatMessages">
+                            ${this.renderCustomerConversations(messages)}
+                        </div>
                     </div>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeModalBtn">Fechar</button>
             </div>
         `;
         
         this.renderModal(modalHTML, (modal) => {
-            modal.querySelector('.modal-close').onclick = () => this.closeModal();
+            // Ação do botão de fechar
+            const closeModalButton = modal.querySelector('.modal-close') || modal.querySelector('#closeModalBtn');
+            closeModalButton.onclick = () => this.closeModal();
             
-            // Configurar tabs
+            // Configurar a troca de abas
             this.setupCustomerTabs(modal);
+
+            // Rolar para o final do chat ao abrir
+            const chatContainer = modal.querySelector('#customerChatMessages');
+            if (chatContainer) {
+                this.scrollChatToBottom(chatContainer);
+            }
         });
     }
 
@@ -1088,23 +1103,26 @@ class SistemaPedidos {
             return '<div class="empty-state">Nenhum pedido encontrado</div>';
         }
         
+        // Ordena os pedidos do mais recente para o mais antigo
+        const sortedOrders = orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         return `
-            <div class="customer-orders">
-                ${orders.map(order => `
+            <div class="customer-orders-list">
+                ${sortedOrders.map(order => `
                     <div class="customer-order-item">
                         <div class="order-header">
-                            <span class="order-id">#${order.id}</span>
-                            <span class="order-status ${order.status}">${this.getStatusName(order.status)}</span>
-                            <span class="order-date">${new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
+                            <span class="order-id">Pedido #${order.id}</span>
+                            <span class="order-status status-${order.status}">${this.getStatusName(order.status)}</span>
                         </div>
                         <div class="order-items">
-                            ${order.items.map(item => `
-                                <span class="order-item">${item.quantity}x ${item.productName}</span>
-                            `).join('')}
+                            ${order.items.map(item => {
+                                const product = this.products.find(p => p.id === item.productId);
+                                return `<span class="order-item">${item.quantity}x ${product ? product.name : 'Item'}</span>`;
+                            }).join('')}
                         </div>
                         <div class="order-footer">
                             <span class="order-total">R$ ${order.total.toFixed(2)}</span>
-                            <span class="order-type ${order.type}">${order.type === 'delivery' ? 'Entrega' : 'Retirada'}</span>
+                            <span class="order-date">${new Date(order.createdAt).toLocaleString('pt-BR')}</span>
                         </div>
                     </div>
                 `).join('')}
@@ -1117,18 +1135,36 @@ class SistemaPedidos {
             return '<div class="empty-state">Nenhuma conversa encontrada</div>';
         }
         
+        // Reutiliza a mesma lógica de renderização do chat do pedido para consistência
         return `
-            <div class="customer-conversations">
-                ${messages.map(msg => `
-                    <div class="conversation-message ${msg.sender}">
-                        <div class="message-header">
-                            <span class="message-sender">${this.getSenderName(msg.sender)}</span>
-                            <span class="message-time">${new Date(msg.timestamp).toLocaleString('pt-BR')}</span>
-                            ${msg.orderId ? `<span class="message-order">Pedido #${msg.orderId}</span>` : ''}
+            <div class="chat-messages-customer">
+                ${messages.map((msg, index) => {
+                    const messageId = msg.id || `cust-msg-${msg.orderId}-${index}`;
+                    
+                    let messageType = 'user'; // padrão
+                    if (msg.sender === 'system') {
+                        messageType = 'system';
+                    } else if (msg.sender === 'customer') {
+                        messageType = 'customer';
+                    } else if (msg.sender === 'user') {
+                        messageType = 'system'; // Atendente
+                    }
+
+                    const messageTime = msg.timestamp ? new Date(msg.timestamp).toLocaleString('pt-BR') : '';
+                    
+                    const senderName = this.getSenderName(msg.sender) + (msg.clientId ? ` (${msg.clientId})` : '');
+
+                    return `
+                        <div class="chat-message ${messageType}" data-message-id="${messageId}">
+                            <div class="message-header">
+                                <span class="message-sender">${senderName}</span>
+                                ${msg.orderId ? `<span class="message-order">Ref. Pedido #${msg.orderId}</span>` : ''}
+                            </div>
+                            <div class="message-content">${msg.message}</div>
+                            <div class="message-time">${messageTime}</div>
                         </div>
-                        <div class="message-content">${msg.message}</div>
-                    </div>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
         `;
     }
@@ -2315,44 +2351,64 @@ class SistemaPedidos {
         }
     }
 
-    async initializeChatInterface(orderId) {
-        try {
-            // Carregar mensagens iniciais
-            const chatData = await this.getChatMessages(orderId, 1, 10);
-            const chatContainer = document.getElementById('chatMessages');
-            const loadMoreBtn = document.getElementById('loadMoreMessages');
-            
-            if (chatContainer) {
-                // Atualizar interface com mensagens
-                this.updateChatInterface(orderId, chatData.messages);
-                
-                // Configurar botão de carregar mais mensagens
-                if (loadMoreBtn && chatData.hasMore) {
-                    loadMoreBtn.style.display = 'block';
-                    loadMoreBtn.onclick = async () => {
-                        const hasMore = await this.loadMoreChatMessages(orderId, chatData.currentPage);
-                        if (!hasMore) {
-                            loadMoreBtn.style.display = 'none';
-                        }
-                    };
-                }
-                
-                // Scroll para o final do chat
-                setTimeout(() => {
-                    this.scrollChatToBottom(chatContainer);
-                }, 100);
-                
-                // Iniciar polling para novas mensagens
-                this.startChatPolling(orderId);
-            }
-        } catch (error) {
-            console.error('Erro ao inicializar chat:', error);
-            const chatContainer = document.getElementById('chatMessages');
-            if (chatContainer) {
-                chatContainer.innerHTML = '<div class="error-message">Erro ao carregar mensagens do chat.</div>';
-            }
-        }
-    }
+	async initializeChatInterface(orderId) {
+		try {
+			// Carregar mensagens iniciais
+			const chatData = await this.getChatMessages(orderId, 1, 10);
+			const chatContainer = document.getElementById('chatMessages');
+			const loadMoreBtn = document.getElementById('loadMoreMessages');
+			
+			if (chatContainer) {
+				// Atualizar interface com mensagens
+				this.updateChatInterface(orderId, chatData.messages);
+				
+				// Configurar botão de carregar mais mensagens
+				if (loadMoreBtn) {
+					if (chatData.hasMore) {
+						loadMoreBtn.style.display = 'block';
+						loadMoreBtn.onclick = async () => {
+							try {
+								const nextPage = chatData.currentPage + 1;
+								const moreData = await this.getChatMessages(orderId, nextPage, 10);
+								
+								// Adicionar as novas mensagens às existentes
+								const existingMessages = chatData.messages;
+								chatData.messages = [...existingMessages, ...moreData.messages];
+								chatData.currentPage = moreData.currentPage;
+								chatData.hasMore = moreData.hasMore;
+								
+								// Atualizar interface
+								this.updateChatInterface(orderId, chatData.messages);
+								
+								// Esconder botão se não há mais mensagens
+								if (!moreData.hasMore) {
+									loadMoreBtn.style.display = 'none';
+								}
+							} catch (error) {
+								console.error('Erro ao carregar mais mensagens:', error);
+							}
+						};
+					} else {
+						loadMoreBtn.style.display = 'none';
+					}
+				}
+				
+				// Scroll para o final do chat
+				setTimeout(() => {
+					this.scrollChatToBottom(chatContainer);
+				}, 100);
+				
+				// Iniciar polling para novas mensagens
+				this.startChatPolling(orderId);
+			}
+		} catch (error) {
+			console.error('Erro ao inicializar chat:', error);
+			const chatContainer = document.getElementById('chatMessages');
+			if (chatContainer) {
+				chatContainer.innerHTML = '<div class="error-message">Erro ao carregar mensagens do chat.</div>';
+			}
+		}
+	}
 
     // =================================================================
     // 8. SISTEMA DE CHAT DE PEDIDOS
@@ -2384,25 +2440,34 @@ class SistemaPedidos {
         }
     }
 
-    async getChatMessages(orderId, page = 1, limit = 10) {
-        try {
-            const response = await this.apiService.get(API_CONFIG.ENDPOINTS.CHAT.GET_MESSAGES, {
-                orderId: orderId,
-                page: page,
-                limit: limit
-            });
 
-            return {
-                messages: response.messages || [],
-                totalPages: response.totalPages || 1,
-                currentPage: response.currentPage || 1,
-                hasMore: response.hasMore || false
-            };
-        } catch (error) {
-            console.error('Erro ao carregar mensagens:', error);
-            throw error;
-        }
-    }
+	async getChatMessages(orderId, page = 1, limit = 10) {
+		try {
+			// Corrigido: usar a variável 'customer' que foi definida
+			const response = await this.apiService.get(`${API_CONFIG.ENDPOINTS.CHAT.GET_MESSAGES}/${orderId}/${page}/${limit}`);
+			
+			// Se a resposta for um array simples (como no seu exemplo)
+			if (Array.isArray(response)) {
+				return {
+					messages: response,
+					totalPages: Math.ceil(response.length / limit),
+					currentPage: page,
+					hasMore: response.length === limit
+				};
+			}
+			
+			// Se a resposta for um objeto com estrutura completa
+			return {
+				messages: response.messages || [],
+				totalPages: response.totalPages || 1,
+				currentPage: response.currentPage || page,
+				hasMore: response.hasMore || false
+			};
+		} catch (error) {
+			console.error('Erro ao carregar mensagens:', error);
+			throw error;
+		}
+	}
 
     async getUnreadMessagesCount(orderId = null) {
         try {
@@ -2421,32 +2486,48 @@ class SistemaPedidos {
             clearInterval(this.chatPollingInterval);
         }
 
+        // Armazena o timestamp da última mensagem conhecida para este chat
+        this.lastMessageTimestamp = null;
+        const order = this.orders.find(o => o.id === orderId);
+        if (order && order.chat && order.chat.length > 0) {
+            this.lastMessageTimestamp = order.chat[order.chat.length - 1].time;
+        }
+
+
         this.chatPollingInterval = setInterval(async () => {
             try {
-                // Verificar se ainda estamos no chat do pedido
+                // Para o polling se o modal do pedido for fechado
                 const activeModal = document.querySelector('.modal-backdrop');
                 if (!activeModal || !activeModal.querySelector(`[data-order-id="${orderId}"]`)) {
                     this.stopChatPolling();
                     return;
                 }
 
-                // Buscar novas mensagens
+                // Busca as 50 mensagens mais recentes
                 const chatData = await this.getChatMessages(orderId, 1, 50);
-                const order = this.orders.find(o => o.id === orderId);
                 
-                if (order && chatData.messages.length > 0) {
-                    const currentMessagesCount = order.chat ? order.chat.length : 0;
+                if (chatData.messages && chatData.messages.length > 0) {
+                    const latestMessage = chatData.messages[chatData.messages.length - 1];
                     
-                    if (chatData.messages.length > currentMessagesCount) {
-                        // Atualizar cache local
-                        order.chat = chatData.messages;
+                    // Compara o timestamp da última mensagem. Se for mais nova, atualiza.
+                    if (!this.lastMessageTimestamp || new Date(latestMessage.time) > new Date(this.lastMessageTimestamp)) {
+                        // Atualiza o cache local
+                        const orderToUpdate = this.orders.find(o => o.id === orderId);
+                        if(orderToUpdate) {
+                            orderToUpdate.chat = chatData.messages;
+                        }
                         
-                        // Atualizar interface do chat
+                        // Atualiza o timestamp da última mensagem conhecida
+                        this.lastMessageTimestamp = latestMessage.time;
+                        
+                        // Atualiza a interface do chat de forma inteligente
                         this.updateChatInterface(orderId, chatData.messages);
                     }
                 }
             } catch (error) {
                 console.warn('Erro no polling do chat:', error);
+                // Opcional: parar o polling em caso de erro para não sobrecarregar
+                // this.stopChatPolling();
             }
         }, 5000); // Verificar a cada 5 segundos
     }
@@ -2458,25 +2539,54 @@ class SistemaPedidos {
         }
     }
 
-    updateChatInterface(orderId, messages) {
-        const chatContainer = document.getElementById('chatMessages');
-        if (!chatContainer) return;
+	updateChatInterface(orderId, messages) {
+		const chatContainer = document.getElementById('chatMessages');
+		if (!chatContainer) return;
+		
+		const wasAtBottom = this.isChatAtBottom(chatContainer);
+		
+        // Itera sobre as mensagens recebidas e adiciona apenas as que não existem no DOM
+		messages.forEach((msg, index) => {
+			const messageId = msg.id || `msg-${orderId}-${index}`;
+            
+            // Se a mensagem ainda não está na tela, adicione-a
+            if (!chatContainer.querySelector(`[data-message-id="${messageId}"]`)) {
+                let messageType = 'user'; // padrão
+                if (msg.sender === 'system') {
+                    messageType = 'system';
+                } else if (msg.sender === 'customer') {
+                    messageType = 'customer';
+                } else if (msg.sender === 'user') {
+                    messageType = 'system'; // Atendente é tratado como 'system' visualmente
+                }
+                
+                const messageTime = msg.time ? new Date(msg.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+                
+                let senderName = 'Desconhecido';
+                if (msg.sender === 'system') {
+                    senderName = 'Sistema';
+                } else if (msg.sender === 'customer') {
+                    senderName = 'Cliente';
+                } else if (msg.sender === 'user' || msg.clientId) {
+                    senderName = msg.clientId || 'Atendente';
+                }
 
-        const wasAtBottom = this.isChatAtBottom(chatContainer);
-
-        chatContainer.innerHTML = messages.map(msg => `
-            <div class="chat-message ${msg.senderId === 'system' ? 'system' : 'user'}" data-message-id="${msg.id}">
-                <div class="message-content">${msg.message}</div>
-                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
-                <div class="message-sender">${msg.senderId === 'system' ? 'Sistema' : msg.clientId || 'Cliente'}</div>
-            </div>
-        `).join('');
-
-        // Se estava no final, manter no final
-        if (wasAtBottom) {
-            this.scrollChatToBottom(chatContainer);
-        }
-    }
+                const messageElementHTML = `
+                    <div class="chat-message ${messageType}" data-message-id="${messageId}">
+                        <div class="message-content">${msg.message}</div>
+                        <div class="message-time">${messageTime}</div>
+                        <div class="message-sender">${senderName}</div>
+                    </div>
+                `;
+                chatContainer.insertAdjacentHTML('beforeend', messageElementHTML);
+            }
+		});
+		
+		// Se o usuário estava no final do chat, role para a nova mensagem
+		if (wasAtBottom) {
+			this.scrollChatToBottom(chatContainer);
+		}
+	}
 
     isChatAtBottom(chatContainer) {
         const threshold = 50; // pixels de tolerância

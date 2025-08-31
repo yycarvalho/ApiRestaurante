@@ -3,6 +3,8 @@ package com.sistema.pedidos.model;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+import org.java_websocket.WebSocket;
+
 /**
  * Modelo de dados para Usuário
  */
@@ -18,6 +20,8 @@ public class User {
 	private LocalDateTime lastLogin;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
+
+	private WebSocket webSocket;
 
 	// Construtores
 	public User() {
@@ -141,5 +145,13 @@ public class User {
 	public String toString() {
 		return "User{" + "id=" + id + ", name='" + name + '\'' + ", username='" + username + '\'' + ", profileId="
 				+ profileId + ", active=" + active + ", createdAt=" + createdAt + '}';
+	}
+
+	public WebSocket getWebSocket() {
+		return webSocket;
+	}
+
+	public void setWebSocket(WebSocket webSocket) {
+		this.webSocket = webSocket;
 	}
 }

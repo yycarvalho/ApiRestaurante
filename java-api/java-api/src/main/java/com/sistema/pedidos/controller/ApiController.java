@@ -6,10 +6,14 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
+
+import org.java_websocket.server.WebSocketServer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistema.pedidos.dto.ApiResponse;
@@ -30,6 +34,7 @@ import com.sistema.pedidos.service.ProductService;
 import com.sistema.pedidos.service.ProfileService;
 import com.sistema.pedidos.service.UserService;
 import com.sistema.pedidos.util.ActionLogger;
+import com.sistema.websocket.NotificacaoWebSocketServer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -42,6 +47,11 @@ public class ApiController {
 
 	private final ObjectMapper objectMapper;
 	private final AuthService authService;
+
+	public AuthService getAuthService() {
+		return authService;
+	}
+
 	private final UserService userService;
 	private final ProfileService profileService;
 	private final ProductService productService;
@@ -68,6 +78,14 @@ public class ApiController {
 		this.customerService = new CustomerService();
 	}
 
+	public static ApiController getInstance() {
+		return SingletonHolder.INSTANCE;
+	}
+
+	private static class SingletonHolder {
+		protected static final ApiController INSTANCE = new ApiController();
+	}
+
 	/**
 	 * Inicia o servidor HTTP
 	 */
@@ -75,6 +93,7 @@ public class ApiController {
 		HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
 
 		// Configurar rotas
+
 		server.createContext("/api/auth/login", new LoginHandler());
 		server.createContext("/api/auth/logout", new LogoutHandler());
 		server.createContext("/api/auth/validate", new ValidateTokenHandler());
@@ -213,6 +232,8 @@ public class ApiController {
 
 				if (isValid) {
 					User user = authService.getUserFromToken(token);
+					user.setPassword("");
+					user.setUsername("");
 					sendJsonResponse(exchange, 200, ApiResponse.success("Token válido", user));
 				} else {
 					sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
@@ -250,10 +271,7 @@ public class ApiController {
 			try {
 				switch (method) {
 				case "GET":
-					System.out.println("Lista de Perfils");
-
 					for (Entry<String, Boolean> iterable_element : getUser(exchange).getPermissions().entrySet()) {
-						System.out.println(iterable_element.getKey());
 						if (iterable_element.getKey().equalsIgnoreCase(PERMISSIONS.GERENCIAR_PERFIS.getName()))
 							if (!iterable_element.getValue()) {
 								// profile.setName(getUser(exchange).getProfileName());
@@ -507,6 +525,9 @@ public class ApiController {
 						sendJsonResponse(exchange, 401, ApiResponse.error("Token inválido"));
 						return;
 					}
+
+					NotificacaoWebSocketServer.enviarNotificacao("/produto");
+
 					String requestBody = readRequestBody(exchange);
 					Product newProduct = objectMapper.readValue(requestBody, Product.class);
 					Product createdProduct = productService.create(newProduct);
@@ -520,6 +541,9 @@ public class ApiController {
 					}
 					String[] pathParts = path.split("/");
 					if (pathParts.length >= 4) {
+
+						NotificacaoWebSocketServer.enviarNotificacao("/produto");
+
 						Long productId = Long.parseLong(pathParts[3]);
 						String updateBody = readRequestBody(exchange);
 						Product updateProduct = objectMapper.readValue(updateBody, Product.class);
@@ -539,6 +563,7 @@ public class ApiController {
 					if (deletePathParts.length >= 4) {
 						Long productId = Long.parseLong(deletePathParts[3]);
 						boolean deleted = productService.delete(productId);
+						NotificacaoWebSocketServer.enviarNotificacao("/produto");
 						if (deleted) {
 							sendJsonResponse(exchange, 200, ApiResponse.success("Produto excluído com sucesso"));
 						} else {
@@ -589,14 +614,24 @@ public class ApiController {
 			try {
 				switch (method) {
 				case "GET":
-					List<Order> orders = orderService.findAll();
-					sendJsonResponse(exchange, 200, orders);
+					List<Order> allOrders = orderService.findAll();
+					LocalDateTime today = LocalDateTime.now();
+					LocalDateTime startOfDay = today.withHour(0).withMinute(0).withSecond(0);
+					LocalDateTime endOfDay = today.withHour(23).withMinute(59).withSecond(59);
+
+					// Pedidos de hoje
+					List<Order> ordersToday = allOrders.stream()
+							.filter(order -> order.getCreatedAt().isAfter(startOfDay)
+									&& order.getCreatedAt().isBefore(endOfDay))
+							.collect(Collectors.toList());
+					sendJsonResponse(exchange, 200, ordersToday);
 					break;
 
 				case "POST":
 					String requestBody = readRequestBody(exchange);
 					Order newOrder = objectMapper.readValue(requestBody, Order.class);
 					Order createdOrder = orderService.create(newOrder);
+					NotificacaoWebSocketServer.enviarNotificacao("/pedidos");
 					sendJsonResponse(exchange, 201, createdOrder);
 					break;
 
@@ -608,8 +643,9 @@ public class ApiController {
 						String statusBody = readRequestBody(exchange);
 						Map<String, String> statusData = objectMapper.readValue(statusBody, Map.class);
 						String newStatus = statusData.get("status");
-
+						NotificacaoWebSocketServer.enviarNotificacao("/pedidos");
 						Order updatedOrder = orderService.updateStatus(orderId, newStatus);
+						NotificacaoWebSocketServer.enviarNotificacao("/chat/" + orderId);
 						sendJsonResponse(exchange, 200, updatedOrder);
 					} else {
 						sendJsonResponse(exchange, 400, ApiResponse.error("Endpoint inválido"));
@@ -653,10 +689,7 @@ public class ApiController {
 				return;
 			}
 
-			String token = extractToken(exchange);
-			User userFromToken = authService.getUserFromToken(token);
-
-			if (!metricsService.isPermimissions(userFromToken)) {
+			if (!metricsService.isPermimissions(getUser(exchange))) {
 				sendJsonResponse(exchange, 401, ApiResponse.error("Permissão inválid"));
 				return;
 			}
@@ -851,8 +884,6 @@ public class ApiController {
 			String method = exchange.getRequestMethod();
 			String path = exchange.getRequestURI().getPath();
 
-			System.out.println(path);
-
 			try {
 				switch (method) {
 				case "POST":
@@ -870,6 +901,8 @@ public class ApiController {
 					message = user.getName() + ": " + message;
 
 					orderService.addChatMessage(orderId, message, "user");
+
+					NotificacaoWebSocketServer.enviarNotificacao("/chat/" + orderId);
 
 					sendJsonResponse(exchange, 200, ApiResponse.error("Método não encontrado"));
 					break;
@@ -946,14 +979,19 @@ public class ApiController {
 		try {
 			int port = args.length > 0 ? Integer.parseInt(args[0]) : 8080;
 
-			ApiController controller = new ApiController();
-			controller.start(port);
+			ApiController.getInstance().start(port);
+
+//			ApiController controller = new ApiController();
+//			controller.start(port);
 
 			System.out.println("Sistema de Pedidos API iniciado com sucesso!");
 			System.out.println("Usuários padrão:");
 			System.out.println("- admin / 123 (Administrador)");
 			System.out.println("- atendente / 123 (Atendente)");
 			System.out.println("- entregador / 123 (Entregador)");
+
+			WebSocketServer wsServer = new NotificacaoWebSocketServer(new InetSocketAddress("0.0.0.0", 8081));
+			wsServer.start();
 
 		} catch (Exception e) {
 			System.err.println("Erro ao iniciar servidor: " + e.getMessage());

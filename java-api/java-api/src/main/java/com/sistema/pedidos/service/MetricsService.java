@@ -166,7 +166,8 @@ public class MetricsService {
 			revenue.add(monthRevenue);
 
 			// Log para debug
-			System.out.println("Mês " + monthNames[month - 1] + " - Revenue: " + monthRevenue);
+			// System.out.println("Mês " + monthNames[month - 1] + " - Revenue: " +
+			// monthRevenue);
 		}
 
 		return revenue;

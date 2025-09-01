@@ -256,6 +256,112 @@ class SistemaPedidos {
             this.showToast('Erro na aplicação. Recarregue a página se necessário.', 'error');
         });
     }
+	
+	connectWebSocket() {
+		// Acessa o token armazenado na sua aplicação
+		const token = this.apiService.token; 
+	
+		// Se não houver token, não tenta conectar
+		if (!token) {
+			console.error("Token de autenticação não encontrado. Conexão WebSocket não iniciada.");
+			return;
+		}
+	
+		// Adiciona o token como um parâmetro de consulta à URL do WebSocket
+		this.socket = new WebSocket(`ws://localhost:8081/api/notificacoes?token=${token}`);
+	
+		this.socket.onopen = () => {
+			console.log("Conectado ao servidor WebSocket com sucesso!");
+		};
+	
+		this.socket.onmessage = async (event) => {
+			console.log("Notificação recebida:", event.data);
+			await this.handleWebSocketNotification(event.data);
+		};
+	
+		this.socket.onclose = (event) => {
+			// O evento de fechamento contém informações úteis, como o código.
+			// O código 1008, por exemplo, indica que a conexão foi rejeitada por política (token inválido).
+			if (event.code === 1008) {
+				console.warn("Conexão WebSocket fechada: token inválido ou ausente.");
+				// Você pode adicionar uma lógica para fazer logout ou pedir um novo login aqui
+			} else {
+				console.log("Conexão WebSocket encerrada.");
+			}
+		};
+	
+		this.socket.onerror = (error) => {
+			console.error("Erro no WebSocket:", error);
+		};
+	}
+
+	async handleWebSocketNotification(notificationUrl) {
+		if (!this.apiService.token || !this.currentUser) return;
+	
+	    if (notificationUrl.startsWith('/chat/')) {
+			const orderId = notificationUrl.replace('/chat/', '');
+			await this.updateChatMessages(orderId);
+			return; // Retorna para não processar outros casos
+		}
+	
+		try {
+			switch (notificationUrl) {
+				case '/pedidos':
+					const orders = await this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST);
+					if (JSON.stringify(orders) !== JSON.stringify(this.orders)) {
+						this.orders = orders;
+						this.renderSectionContent('pedidos');
+					}
+					break;
+				case '/dashboard':
+					const metrics = await this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD);
+					if (JSON.stringify(metrics) !== JSON.stringify(this.metrics)) {
+						this.metrics = metrics;
+						this.renderSectionContent('dashboard');
+					}
+					break;
+				case '/cardapio':
+				case '/produto': // Adiciona alias, se o server enviar assim
+					const products = await this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST);
+					if (JSON.stringify(products) !== JSON.stringify(this.products)) {
+						this.products = products;
+						this.renderSectionContent('cardapio');
+					}
+					break;
+				case '/perfis':
+					const profiles = await this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST);
+					const users = await this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST);
+	
+					const profilesChanged = JSON.stringify(profiles) !== JSON.stringify(this.profiles);
+					const usersChanged = JSON.stringify(users) !== JSON.stringify(this.users);
+	
+					if (profilesChanged) this.profiles = profiles;
+					if (usersChanged) this.users = users;
+	
+					if (profilesChanged || usersChanged) {
+						this.renderSectionContent('perfis');
+					}
+					break;
+				case '/clientes':
+					// Clientes podem ter uma lógica de carregamento sob demanda,
+					// mas se necessário, a requisição seria aqui.
+					break;
+				case '/relatorios':
+					// Normalmente relatórios não são atualizados em tempo real,
+					// mas a lógica seria a mesma que para o dashboard.
+					const reportMetrics = await this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD);
+					if (JSON.stringify(reportMetrics) !== JSON.stringify(this.metrics)) {
+						this.metrics = reportMetrics;
+						this.renderSectionContent('relatorios');
+					}
+					break;
+				default:
+					console.warn(`Notificação WebSocket desconhecida: ${notificationUrl}`);
+			}
+		} catch (e) {
+			console.error(`Falha ao atualizar dados para ${notificationUrl}:`, e);
+		}
+	}
 
     startTokenValidationTimer() {
         // Verificar token a cada 2 minutos
@@ -272,88 +378,88 @@ class SistemaPedidos {
         }, 2 * 60 * 1000); // 2 minutos
 
         // Polling em background para dados baseado na aba ativa
-        setInterval(async () => {
-            if (!this.apiService.token || !this.currentUser || !this.activeSection) return;
-            
-            try {
-                // Fazer requisições apenas para dados relevantes à aba ativa
-                const requests = [];
-                const requestTypes = [];
-
-                // Sempre buscar pedidos (usado em várias abas)
-                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST));
-                requestTypes.push('orders');
-
-                // Requisições específicas por aba
-                switch (this.activeSection) {
-                    case 'dashboard':
-                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD));
-                        requestTypes.push('metrics');
-                        break;
-                    case 'cardapio':
-                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST));
-                        requestTypes.push('products');
-                        break;
-                    case 'perfis':
-                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST));
-                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST));
-                        requestTypes.push('profiles', 'users');
-                        break;
-                    case 'pedidos':
-                        // Pedidos já incluído acima
-                        break;
-                    case 'clientes':
-                        // Clientes serão carregados sob demanda
-                        break;
-                    case 'relatorios':
-                        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD));
-                        requestTypes.push('metrics');
-                        break;
-                }
-
-                const responses = await Promise.all(requests);
-                let hasChanges = false;
-
-                // Processar respostas
-                responses.forEach((data, index) => {
-                    const type = requestTypes[index];
-                    let changed = false;
-
-                    switch (type) {
-                        case 'orders':
-                            changed = JSON.stringify(data) !== JSON.stringify(this.orders);
-                            if (changed) this.orders = data;
-                            break;
-                        case 'metrics':
-                            changed = JSON.stringify(data) !== JSON.stringify(this.metrics);
-                            if (changed) this.metrics = data;
-                            break;
-                        case 'products':
-                            changed = JSON.stringify(data) !== JSON.stringify(this.products);
-                            if (changed) this.products = data;
-                            break;
-                        case 'profiles':
-                            changed = JSON.stringify(data) !== JSON.stringify(this.profiles);
-                            if (changed) this.profiles = data;
-                            break;
-                        case 'users':
-                            changed = JSON.stringify(data) !== JSON.stringify(this.users);
-                            if (changed) this.users = data;
-                            break;
-                    }
-
-                    if (changed) hasChanges = true;
-                });
-
-                // Re-renderizar apenas se houve mudanças
-                if (hasChanges) {
-                    this.renderSectionContent(this.activeSection);
-                }
-            } catch (e) {
-                // Silenciar erros de polling para não atrapalhar UX
-                console.warn('Erro no polling da aba ativa:', e.message);
-            }
-        }, 30 * 1000); // a cada 30s
+        //setInterval(async () => {
+        //    if (!this.apiService.token || !this.currentUser || !this.activeSection) return;
+        //    
+        //    try {
+        //        // Fazer requisições apenas para dados relevantes à aba ativa
+        //        const requests = [];
+        //        const requestTypes = [];
+		//
+        //        // Sempre buscar pedidos (usado em várias abas)
+        //        requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.ORDERS.LIST));
+        //        requestTypes.push('orders');
+		//
+        //        // Requisições específicas por aba
+        //        switch (this.activeSection) {
+        //            case 'dashboard':
+        //                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD));
+        //                requestTypes.push('metrics');
+        //                break;
+        //            case 'cardapio':
+        //                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.PRODUCTS.LIST));
+        //                requestTypes.push('products');
+        //                break;
+        //            case 'perfis':
+        //                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.PROFILES.LIST));
+        //                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.USERS.LIST));
+        //                requestTypes.push('profiles', 'users');
+        //                break;
+        //            case 'pedidos':
+        //                // Pedidos já incluído acima
+        //                break;
+        //            case 'clientes':
+        //                // Clientes serão carregados sob demanda
+        //                break;
+        //            case 'relatorios':
+        //                requests.push(this.apiService.get(API_CONFIG.ENDPOINTS.METRICS.DASHBOARD));
+        //                requestTypes.push('metrics');
+        //                break;
+        //        }
+		//
+        //        const responses = await Promise.all(requests);
+        //        let hasChanges = false;
+		//
+        //        // Processar respostas
+        //        responses.forEach((data, index) => {
+        //            const type = requestTypes[index];
+        //            let changed = false;
+		//
+        //            switch (type) {
+        //                case 'orders':
+        //                    changed = JSON.stringify(data) !== JSON.stringify(this.orders);
+        //                    if (changed) this.orders = data;
+        //                    break;
+        //                case 'metrics':
+        //                    changed = JSON.stringify(data) !== JSON.stringify(this.metrics);
+        //                    if (changed) this.metrics = data;
+        //                    break;
+        //                case 'products':
+        //                    changed = JSON.stringify(data) !== JSON.stringify(this.products);
+        //                    if (changed) this.products = data;
+        //                    break;
+        //                case 'profiles':
+        //                    changed = JSON.stringify(data) !== JSON.stringify(this.profiles);
+        //                    if (changed) this.profiles = data;
+        //                    break;
+        //                case 'users':
+        //                    changed = JSON.stringify(data) !== JSON.stringify(this.users);
+        //                    if (changed) this.users = data;
+        //                    break;
+        //            }
+		//
+        //            if (changed) hasChanges = true;
+        //        });
+		//
+        //        // Re-renderizar apenas se houve mudanças
+        //        if (hasChanges) {
+        //            this.renderSectionContent(this.activeSection);
+        //        }
+        //    } catch (e) {
+        //        // Silenciar erros de polling para não atrapalhar UX
+        //        console.warn('Erro no polling da aba ativa:', e.message);
+        //    }
+        //}, 30 * 1000); // a cada 30s
     }
 
     // =================================================================
@@ -544,6 +650,7 @@ class SistemaPedidos {
             await this.loadInitialData();
             this.showMainSystem();
             this.showToast('Login realizado com sucesso!', 'success');
+			this.connectWebSocket();
 
         } catch (error) {
             this.showToast(error.message || 'Erro ao fazer login. Tente novamente.', 'error');
@@ -2494,43 +2601,65 @@ class SistemaPedidos {
         }
 
 
-        this.chatPollingInterval = setInterval(async () => {
-            try {
-                // Para o polling se o modal do pedido for fechado
-                const activeModal = document.querySelector('.modal-backdrop');
-                if (!activeModal || !activeModal.querySelector(`[data-order-id="${orderId}"]`)) {
-                    this.stopChatPolling();
-                    return;
-                }
-
-                // Busca as 50 mensagens mais recentes
-                const chatData = await this.getChatMessages(orderId, 1, 50);
-                
-                if (chatData.messages && chatData.messages.length > 0) {
-                    const latestMessage = chatData.messages[chatData.messages.length - 1];
-                    
-                    // Compara o timestamp da última mensagem. Se for mais nova, atualiza.
-                    if (!this.lastMessageTimestamp || new Date(latestMessage.time) > new Date(this.lastMessageTimestamp)) {
-                        // Atualiza o cache local
-                        const orderToUpdate = this.orders.find(o => o.id === orderId);
-                        if(orderToUpdate) {
-                            orderToUpdate.chat = chatData.messages;
-                        }
-                        
-                        // Atualiza o timestamp da última mensagem conhecida
-                        this.lastMessageTimestamp = latestMessage.time;
-                        
-                        // Atualiza a interface do chat de forma inteligente
-                        this.updateChatInterface(orderId, chatData.messages);
-                    }
-                }
-            } catch (error) {
-                console.warn('Erro no polling do chat:', error);
-                // Opcional: parar o polling em caso de erro para não sobrecarregar
-                // this.stopChatPolling();
-            }
-        }, 5000); // Verificar a cada 5 segundos
+        //this.chatPollingInterval = setInterval(async () => {
+        //    try {
+        //        // Para o polling se o modal do pedido for fechado
+        //        const activeModal = document.querySelector('.modal-backdrop');
+        //        if (!activeModal || !activeModal.querySelector(`[data-order-id="${orderId}"]`)) {
+        //            this.stopChatPolling();
+        //            return;
+        //        }
+		//
+        //        // Busca as 50 mensagens mais recentes
+        //        const chatData = await this.getChatMessages(orderId, 1, 50);
+        //        
+        //        if (chatData.messages && chatData.messages.length > 0) {
+        //            const latestMessage = chatData.messages[chatData.messages.length - 1];
+        //            
+        //            // Compara o timestamp da última mensagem. Se for mais nova, atualiza.
+        //            if (!this.lastMessageTimestamp || new Date(latestMessage.time) > new Date(this.lastMessageTimestamp)) {
+        //                // Atualiza o cache local
+        //                const orderToUpdate = this.orders.find(o => o.id === orderId);
+        //                if(orderToUpdate) {
+        //                    orderToUpdate.chat = chatData.messages;
+        //                }
+        //                
+        //                // Atualiza o timestamp da última mensagem conhecida
+        //                this.lastMessageTimestamp = latestMessage.time;
+        //                
+        //                // Atualiza a interface do chat de forma inteligente
+        //                this.updateChatInterface(orderId, chatData.messages);
+        //            }
+        //        }
+        //    } catch (error) {
+        //        console.warn('Erro no polling do chat:', error);
+        //        // Opcional: parar o polling em caso de erro para não sobrecarregar
+        //        // this.stopChatPolling();
+        //    }
+        //}, 5000); // Verificar a cada 5 segundos
     }
+	
+	async updateChatMessages(orderId) {
+    try {
+        const chatData = await this.getChatMessages(orderId, 1, 50);
+
+        if (chatData.messages && chatData.messages.length > 0) {
+            const latestMessage = chatData.messages[chatData.messages.length - 1];
+            
+            // Compara o timestamp da última mensagem. Se for mais nova, atualiza.
+            if (!this.lastMessageTimestamp || new Date(latestMessage.time) > new Date(this.lastMessageTimestamp)) {
+                const orderToUpdate = this.orders.find(o => o.id === orderId);
+                if (orderToUpdate) {
+                    orderToUpdate.chat = chatData.messages;
+                    this.lastMessageTimestamp = latestMessage.time;
+                    this.updateChatInterface(orderId, chatData.messages);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao buscar mensagens do chat via WebSocket:', error);
+    }
+}
 
     stopChatPolling() {
         if (this.chatPollingInterval) {

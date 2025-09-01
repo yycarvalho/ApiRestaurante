@@ -33,8 +33,8 @@ public class NotificacaoWebSocketServer extends WebSocketServer {
 			conn.close(1008, "Token inválido."); // Código 1008 é para violação de política
 			return; // Encerra o método para evitar a adição do cliente
 		}
-		User user = ApiController.getInstance().getAuthService().getUserFromToken(token);
-		user.setWebSocket(conn);
+		User userFromToken = ApiController.getInstance().getServices().getAuthService().getUserFromToken(token);
+		userFromToken.setWebSocket(conn);
 		clientes.add(conn);
 		System.out.println("Novo cliente conectado: " + conn.getRemoteSocketAddress() + " (Token válido)");
 		conn.send("Bem-vindo ao servidor WebSocket!");
@@ -73,7 +73,7 @@ public class NotificacaoWebSocketServer extends WebSocketServer {
 	 */
 	private boolean validarToken(String token) {
 
-		if (!ApiController.getInstance().getAuthService().validateToken(token))
+		if (!ApiController.getInstance().getServices().getAuthService().validateToken(token))
 			return false;
 		return token != null && !token.isEmpty();
 	}

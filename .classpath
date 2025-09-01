@@ -8,7 +8,6 @@
 	<classpathentry kind="lib" path="java-api/java-api/lib/jackson-databind-2.15.2.jar"/>
 	<classpathentry kind="lib" path="java-api/java-api/lib/jackson-datatype-jsr310-2.15.2.jar"/>
 	<classpathentry kind="lib" path="java-api/java-api/lib/mysql-connector-j-8.4.0.jar"/>
-	<classpathentry kind="lib" path="java-api/java-api/lib/slf4j-api-2.0.17.jar"/>
 	<classpathentry kind="lib" path="lib/HikariCP-5.1.0.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-annotations-2.15.2.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-core-2.15.2.jar"/>
@@ -16,5 +15,9 @@
 	<classpathentry kind="lib" path="lib/mysql-connector-j-8.4.0.jar"/>
 	<classpathentry kind="lib" path="C:/Users/Admin/git/ApiRestaurante/lib/javax.websocket-api-1.1.jar"/>
 	<classpathentry kind="lib" path="C:/Users/Admin/git/ApiRestaurante/lib/Java-WebSocket-1.5.3.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Admin/git/ApiRestaurante/lib/lombok-1.18.38.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Admin/git/ApiRestaurante/lib/slf4j-api-2.0.17.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Admin/git/ApiRestaurante/lib/logback-core-1.5.18.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Admin/git/ApiRestaurante/lib/logback-classic-1.5.18.jar"/>
 	<classpathentry kind="output" path="java-api/java-api/build/classes"/>
 </classpath>

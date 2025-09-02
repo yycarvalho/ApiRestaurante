@@ -611,9 +611,14 @@ class SistemaPedidos {
             });
         });
 
-        // Busca
+        // Toggle do Sidebar
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            this.toggleSidebar();
+        });
+
+        // Busca Global
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            this.searchOrders(e.target.value);
+            this.globalSearch(e.target.value);
         });
 
         // Logout ao atualizar/fechar a página
@@ -690,6 +695,202 @@ class SistemaPedidos {
     // =================================================================
     // 3. HELPERS DE UI E NAVEGAÇÃO
     // =================================================================
+
+    toggleSidebar() {
+        const mainSystem = document.querySelector('.main-system');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const icon = sidebarToggle.querySelector('i');
+        
+        mainSystem.classList.toggle('sidebar-collapsed');
+        
+        if (mainSystem.classList.contains('sidebar-collapsed')) {
+            icon.className = 'fas fa-chevron-right';
+            sidebarToggle.title = 'Expandir Menu';
+        } else {
+            icon.className = 'fas fa-bars';
+            sidebarToggle.title = 'Recolher Menu';
+        }
+    }
+
+    globalSearch(query) {
+        if (!query) {
+            // Se não há busca, renderizar a seção atual normalmente
+            this.renderSectionContent(this.activeSection);
+            return;
+        }
+
+        const searchTerm = query.toLowerCase();
+        let results = [];
+
+        // Buscar em pedidos
+        const orderResults = this.orders.filter(order => 
+            order.id.toLowerCase().includes(searchTerm) ||
+            order.customer.toLowerCase().includes(searchTerm) ||
+            (order.phone && order.phone.includes(searchTerm)) ||
+            order.status.toLowerCase().includes(searchTerm)
+        );
+
+        // Buscar em produtos
+        const productResults = this.products.filter(product => 
+            product.name.toLowerCase().includes(searchTerm) ||
+            product.category.toLowerCase().includes(searchTerm) ||
+            product.description.toLowerCase().includes(searchTerm)
+        );
+
+        // Buscar em clientes
+        const customerResults = this.users.filter(user => 
+            user.username.toLowerCase().includes(searchTerm) ||
+            user.name.toLowerCase().includes(searchTerm) ||
+            (user.email && user.email.toLowerCase().includes(searchTerm))
+        );
+
+        // Combinar resultados
+        results = [...orderResults, ...productResults, ...customerResults];
+
+        // Renderizar resultados baseado na seção atual
+        this.renderSearchResults(this.activeSection, results, searchTerm);
+    }
+
+    renderSearchResults(section, results, searchTerm) {
+        const container = document.getElementById(`${section}Section`);
+        container.innerHTML = '';
+
+        if (results.length === 0) {
+            container.innerHTML = `
+                <div class="section-header">
+                    <h2>Resultados da Busca</h2>
+                    <div class="search-info">
+                        <span>Nenhum resultado encontrado para "${searchTerm}"</span>
+                        <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                            <i class="fas fa-times"></i> Limpar Busca
+                        </button>
+                    </div>
+                </div>
+                <div class="empty-state">
+                    <p>Nenhum resultado encontrado para sua busca.</p>
+                    <p>Tente usar termos diferentes ou verificar a ortografia.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Renderizar resultados baseado na seção
+        switch (section) {
+            case 'pedidos':
+                this.renderPedidosSearchResults(container, results, searchTerm);
+                break;
+            case 'cardapio':
+                this.renderCardapioSearchResults(container, results, searchTerm);
+                break;
+            case 'clientes':
+                this.renderClientesSearchResults(container, results, searchTerm);
+                break;
+            default:
+                this.renderGenericSearchResults(container, results, searchTerm);
+        }
+    }
+
+    renderPedidosSearchResults(container, results, searchTerm) {
+        const orderResults = results.filter(item => item.hasOwnProperty('status'));
+        
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca em Pedidos</h2>
+                <div class="search-info">
+                    <span>${orderResults.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="search-results">
+                ${orderResults.map(order => this.createOrderCard(order)).join('')}
+            </div>
+        `;
+
+        // Adicionar eventos aos cards
+        document.querySelectorAll('.order-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const orderId = card.dataset.orderId;
+                this.showOrderModal(orderId);
+            });
+        });
+    }
+
+    renderCardapioSearchResults(container, results, searchTerm) {
+        const productResults = results.filter(item => item.hasOwnProperty('category'));
+        
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca no Cardápio</h2>
+                <div class="search-info">
+                    <span>${productResults.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="products-grid">
+                ${productResults.map(product => this.createProductCard(product)).join('')}
+            </div>
+        `;
+    }
+
+    renderClientesSearchResults(container, results, searchTerm) {
+        const customerResults = results.filter(item => item.hasOwnProperty('username'));
+        
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca em Clientes</h2>
+                <div class="search-info">
+                    <span>${customerResults.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="users-grid">
+                ${customerResults.map(user => this.createUserCard(user)).join('')}
+            </div>
+        `;
+    }
+
+    renderGenericSearchResults(container, results, searchTerm) {
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca</h2>
+                <div class="search-info">
+                    <span>${results.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="search-results">
+                <div class="search-categories">
+                    <h3>Pedidos (${results.filter(item => item.hasOwnProperty('status')).length})</h3>
+                    <div class="search-category-results">
+                        ${results.filter(item => item.hasOwnProperty('status')).map(order => this.createOrderCard(order)).join('')}
+                    </div>
+                    
+                    <h3>Produtos (${results.filter(item => item.hasOwnProperty('category')).length})</h3>
+                    <div class="search-category-results">
+                        ${results.filter(item => item.hasOwnProperty('category')).map(product => this.createProductCard(product)).join('')}
+                    </div>
+                    
+                    <h3>Clientes (${results.filter(item => item.hasOwnProperty('username')).length})</h3>
+                    <div class="search-category-results">
+                        ${results.filter(item => item.hasOwnProperty('username')).map(user => this.createUserCard(user)).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    clearSearch() {
+        document.getElementById('searchInput').value = '';
+        this.renderSectionContent(this.activeSection);
+    }
 
     showLoading() {
         document.getElementById('loading').classList.remove('hidden');
@@ -1010,6 +1211,27 @@ class SistemaPedidos {
                         <i class="fas fa-trash"></i> Excluir
                     </button>
                     ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    createUserCard(user) {
+        return `
+            <div class="user-card" data-user-id="${user.id}">
+                <div class="user-header">
+                    <h3 class="user-name">${user.name || user.username}</h3>
+                    <span class="user-profile">${user.profileId || 'Sem perfil'}</span>
+                </div>
+                <p class="user-info">${user.username}</p>
+                ${user.email ? `<p class="user-email">${user.email}</p>` : ''}
+                <div class="user-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="sistema.editUser('${user.id}')">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="sistema.deleteUser('${user.id}')">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
                 </div>
             </div>
         `;

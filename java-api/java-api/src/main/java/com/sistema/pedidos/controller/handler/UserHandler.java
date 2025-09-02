@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sistema.pedidos.enums.Permissions;
 import com.sistema.pedidos.model.User;
-import com.sistema.pedidos.service.PERMISSIONS;
 import com.sistema.pedidos.service.ServiceContainer;
 import com.sun.net.httpserver.HttpExchange;
 
@@ -67,7 +67,7 @@ public class UserHandler extends BaseHandler {
 		User currentUser = getAuthenticatedUser(exchange);
 
 		// Verificar se o usuário tem permissão para listar todos os usuários
-		if (!hasPermission(currentUser, PERMISSIONS.GERENCIAR_PERFIS)) {
+		if (!hasPermission(currentUser, Permissions.GERENCIAR_PERFIS)) {
 			// Retorna apenas o próprio usuário
 			sendSuccessResponse(exchange, Arrays.asList(currentUser));
 			return;

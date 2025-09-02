@@ -7,7 +7,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sistema.pedidos.enums.Permissions;
+import com.sistema.pedidos.enums.Status;
 import com.sistema.pedidos.model.Order;
+import com.sistema.pedidos.model.User;
 import com.sistema.pedidos.service.ServiceContainer;
 import com.sistema.websocket.NotificacaoWebSocketServer;
 import com.sun.net.httpserver.HttpExchange;
@@ -71,12 +74,15 @@ public class OrderHandler extends BaseHandler {
 
 	private List<Order> filterTodaysOrders(List<Order> allOrders) {
 		LocalDateTime today = LocalDateTime.now();
-		LocalDateTime startOfDay = today.withHour(0).withMinute(0).withSecond(0);
-		LocalDateTime endOfDay = today.withHour(23).withMinute(59).withSecond(59);
+		LocalDateTime startOfDay = today.withHour(0).withMinute(0).withSecond(0).withNano(0);
+		LocalDateTime endOfDay = today.withHour(23).withMinute(59).withSecond(59).withNano(999999999);
 
-		return allOrders.stream()
-				.filter(order -> order.getCreatedAt().isAfter(startOfDay) && order.getCreatedAt().isBefore(endOfDay))
-				.collect(Collectors.toList());
+		return allOrders.stream().filter(order -> {
+			LocalDateTime createdAt = order.getCreatedAt();
+			boolean isToday = !createdAt.isBefore(startOfDay) && !createdAt.isAfter(endOfDay);
+			boolean notFinalizado = !"finalizado".equalsIgnoreCase(order.getStatus());
+			return isToday || (!isToday && notFinalizado);
+		}).collect(Collectors.toList());
 	}
 
 	private void handleCreateOrder(HttpExchange exchange) throws IOException {
@@ -107,6 +113,22 @@ public class OrderHandler extends BaseHandler {
 		if (newStatus == null || newStatus.trim().isEmpty()) {
 			sendBadRequestResponse(exchange, "Status é obrigatório");
 			return;
+		}
+		if (newStatus == null || newStatus.trim().isEmpty() || !Status.containsName(newStatus.trim())) {
+			sendBadRequestResponse(exchange, "Status é obrigatório");
+			return;
+		}
+		User user = getAuthenticatedUser(exchange);
+		Order findById = services.getOrderService().findById(orderId);
+		String status = findById.getStatus();
+		String type = findById.getType();
+
+		if (!user.hasPermission(Permissions.SELECIONAR_STATUS_ESPECIFICO.getName())) {
+			newStatus = Status.getNextStatus(status).getName();
+		}
+		if (type.equalsIgnoreCase("pickup")) {
+			if (newStatus.equalsIgnoreCase(Status.COLETADO.getName()))
+				newStatus = Status.getNextStatus(newStatus).getName();
 		}
 
 		Order updatedOrder = services.getOrderService().updateStatus(orderId, newStatus);

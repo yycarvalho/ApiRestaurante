@@ -5,9 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sistema.pedidos.enums.Permissions;
 import com.sistema.pedidos.model.Profile;
 import com.sistema.pedidos.model.User;
-import com.sistema.pedidos.service.PERMISSIONS;
 import com.sistema.pedidos.service.ServiceContainer;
 import com.sun.net.httpserver.HttpExchange;
 
@@ -68,7 +68,7 @@ public class ProfileHandler extends BaseHandler {
 		}
 
 		// Verificar se o usuário tem permissão para gerenciar perfis
-		if (currentUser != null && !hasPermission(currentUser, PERMISSIONS.GERENCIAR_PERFIS)) {
+		if (currentUser != null && !hasPermission(currentUser, Permissions.GERENCIAR_PERFIS)) {
 			// Retorna apenas o perfil do usuário atual
 			Profile userProfile = createUserProfile(currentUser);
 			sendSuccessResponse(exchange, Arrays.asList(userProfile));
@@ -128,7 +128,7 @@ public class ProfileHandler extends BaseHandler {
 		}
 
 		// Verificar se o usuário tem permissão para gerenciar perfis
-		if (currentUser != null && !hasPermission(currentUser, PERMISSIONS.GERENCIAR_PERFIS)) {
+		if (currentUser != null && !hasPermission(currentUser, Permissions.GERENCIAR_PERFIS)) {
 			// Retorna apenas o perfil do usuário atual
 			Profile userProfile = createUserProfile(currentUser);
 			sendSuccessResponse(exchange, Arrays.asList(userProfile));
@@ -152,7 +152,7 @@ public class ProfileHandler extends BaseHandler {
 		}
 
 		// Verificar se o usuário tem permissão para gerenciar perfis
-		if (currentUser != null && !hasPermission(currentUser, PERMISSIONS.GERENCIAR_PERFIS)) {
+		if (currentUser != null && !hasPermission(currentUser, Permissions.GERENCIAR_PERFIS)) {
 			// Retorna apenas o perfil do usuário atual
 			Profile userProfile = createUserProfile(currentUser);
 			sendSuccessResponse(exchange, Arrays.asList(userProfile));
@@ -170,6 +170,6 @@ public class ProfileHandler extends BaseHandler {
 	}
 
 	private boolean validatePermissions(Profile profile) {
-		return profile.getPermissions().keySet().stream().allMatch(PERMISSIONS::containsName);
+		return profile.getPermissions().keySet().stream().allMatch(Permissions::containsName);
 	}
 }

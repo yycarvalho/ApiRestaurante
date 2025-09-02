@@ -1,4 +1,4 @@
-package com.sistema.pedidos.service;
+package com.sistema.pedidos.enums;
 
 import java.util.Arrays;
 import java.util.Optional;
@@ -6,7 +6,7 @@ import java.util.Optional;
 /**
  * Enum com todas as permissões do sistema
  */
-public enum PERMISSIONS {
+public enum Permissions {
 
 	DASHBOARD_VIEWER("verDashboard"), VER_PEDIDOS("verPedidos"), VER_CLIENTES("verClientes"), VER_PERFIL("verPerfis"),
 	VER_CARDAPIO("verCardapio"), CRIAR_EDITAR_PRODUTO("criarEditarProduto"), EXCLUIR_PRODUTO("excluirProduto"),
@@ -19,7 +19,7 @@ public enum PERMISSIONS {
 
 	private final String key;
 
-	PERMISSIONS(String key) {
+	Permissions(String key) {
 		this.key = key;
 	}
 
@@ -27,12 +27,12 @@ public enum PERMISSIONS {
 		return key;
 	}
 
-	public static Optional<PERMISSIONS> fromName(String text) {
+	public static Optional<Permissions> fromName(String text) {
 		return Arrays.stream(values()).filter(p -> p.getName().equalsIgnoreCase(text)).findFirst();
 	}
 
 	public static boolean containsName(String text) {
-		for (PERMISSIONS permission : values()) {
+		for (Permissions permission : values()) {
 			if (permission.getName().equalsIgnoreCase(text))
 				return true;
 		}

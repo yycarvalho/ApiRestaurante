@@ -11,9 +11,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistema.pedidos.config.ServerConfig;
 import com.sistema.pedidos.context.RequestContext;
 import com.sistema.pedidos.dto.ApiResponse;
+import com.sistema.pedidos.enums.Permissions;
 import com.sistema.pedidos.exception.ApiException;
 import com.sistema.pedidos.model.User;
-import com.sistema.pedidos.service.PERMISSIONS;
 import com.sistema.pedidos.service.ServiceContainer;
 import com.sistema.pedidos.util.ActionLogger;
 import com.sistema.pedidos.util.HttpUtils;
@@ -259,7 +259,7 @@ public abstract class BaseHandler implements HttpHandler {
 		}
 	}
 
-	public boolean hasPermission(User user, PERMISSIONS permission) {
+	public boolean hasPermission(User user, Permissions permission) {
 		if (user == null || permission == null)
 			return false;
 		return user.getPermissions().getOrDefault(permission.getName(), false);

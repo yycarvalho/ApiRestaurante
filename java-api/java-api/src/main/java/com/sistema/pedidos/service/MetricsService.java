@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.sistema.pedidos.enums.Permissions;
 import com.sistema.pedidos.model.Order;
 import com.sistema.pedidos.model.Product;
 import com.sistema.pedidos.model.User;
@@ -537,6 +538,6 @@ public class MetricsService {
 	}
 
 	public boolean isPermimissions(User userFromToken) {
-		return userFromToken.getPermissions().containsKey(PERMISSIONS.DASHBOARD_VIEWER.getName());
+		return userFromToken.getPermissions().containsKey(Permissions.DASHBOARD_VIEWER.getName());
 	}
 }

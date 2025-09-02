@@ -611,9 +611,14 @@ class SistemaPedidos {
             });
         });
 
-        // Busca
+        // Toggle do Sidebar
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            this.toggleSidebar();
+        });
+
+        // Busca Global
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            this.searchOrders(e.target.value);
+            this.globalSearch(e.target.value);
         });
 
         // Logout ao atualizar/fechar a página
@@ -690,6 +695,202 @@ class SistemaPedidos {
     // =================================================================
     // 3. HELPERS DE UI E NAVEGAÇÃO
     // =================================================================
+
+    toggleSidebar() {
+        const mainSystem = document.querySelector('.main-system');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const icon = sidebarToggle.querySelector('i');
+        
+        mainSystem.classList.toggle('sidebar-collapsed');
+        
+        if (mainSystem.classList.contains('sidebar-collapsed')) {
+            icon.className = 'fas fa-chevron-right';
+            sidebarToggle.title = 'Expandir Menu';
+        } else {
+            icon.className = 'fas fa-bars';
+            sidebarToggle.title = 'Recolher Menu';
+        }
+    }
+
+    globalSearch(query) {
+        if (!query) {
+            // Se não há busca, renderizar a seção atual normalmente
+            this.renderSectionContent(this.activeSection);
+            return;
+        }
+
+        const searchTerm = query.toLowerCase();
+        let results = [];
+
+        // Buscar em pedidos
+        const orderResults = this.orders.filter(order => 
+            order.id.toLowerCase().includes(searchTerm) ||
+            order.customer.toLowerCase().includes(searchTerm) ||
+            (order.phone && order.phone.includes(searchTerm)) ||
+            order.status.toLowerCase().includes(searchTerm)
+        );
+
+        // Buscar em produtos
+        const productResults = this.products.filter(product => 
+            product.name.toLowerCase().includes(searchTerm) ||
+            product.category.toLowerCase().includes(searchTerm) ||
+            product.description.toLowerCase().includes(searchTerm)
+        );
+
+        // Buscar em clientes
+        const customerResults = this.users.filter(user => 
+            user.username.toLowerCase().includes(searchTerm) ||
+            user.name.toLowerCase().includes(searchTerm) ||
+            (user.email && user.email.toLowerCase().includes(searchTerm))
+        );
+
+        // Combinar resultados
+        results = [...orderResults, ...productResults, ...customerResults];
+
+        // Renderizar resultados baseado na seção atual
+        this.renderSearchResults(this.activeSection, results, searchTerm);
+    }
+
+    renderSearchResults(section, results, searchTerm) {
+        const container = document.getElementById(`${section}Section`);
+        container.innerHTML = '';
+
+        if (results.length === 0) {
+            container.innerHTML = `
+                <div class="section-header">
+                    <h2>Resultados da Busca</h2>
+                    <div class="search-info">
+                        <span>Nenhum resultado encontrado para "${searchTerm}"</span>
+                        <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                            <i class="fas fa-times"></i> Limpar Busca
+                        </button>
+                    </div>
+                </div>
+                <div class="empty-state">
+                    <p>Nenhum resultado encontrado para sua busca.</p>
+                    <p>Tente usar termos diferentes ou verificar a ortografia.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Renderizar resultados baseado na seção
+        switch (section) {
+            case 'pedidos':
+                this.renderPedidosSearchResults(container, results, searchTerm);
+                break;
+            case 'cardapio':
+                this.renderCardapioSearchResults(container, results, searchTerm);
+                break;
+            case 'clientes':
+                this.renderClientesSearchResults(container, results, searchTerm);
+                break;
+            default:
+                this.renderGenericSearchResults(container, results, searchTerm);
+        }
+    }
+
+    renderPedidosSearchResults(container, results, searchTerm) {
+        const orderResults = results.filter(item => item.hasOwnProperty('status'));
+        
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca em Pedidos</h2>
+                <div class="search-info">
+                    <span>${orderResults.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="search-results">
+                ${orderResults.map(order => this.createOrderCard(order)).join('')}
+            </div>
+        `;
+
+        // Adicionar eventos aos cards
+        document.querySelectorAll('.order-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const orderId = card.dataset.orderId;
+                this.showOrderModal(orderId);
+            });
+        });
+    }
+
+    renderCardapioSearchResults(container, results, searchTerm) {
+        const productResults = results.filter(item => item.hasOwnProperty('category'));
+        
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca no Cardápio</h2>
+                <div class="search-info">
+                    <span>${productResults.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="products-grid">
+                ${productResults.map(product => this.createProductCard(product)).join('')}
+            </div>
+        `;
+    }
+
+    renderClientesSearchResults(container, results, searchTerm) {
+        const customerResults = results.filter(item => item.hasOwnProperty('username'));
+        
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca em Clientes</h2>
+                <div class="search-info">
+                    <span>${customerResults.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="users-grid">
+                ${customerResults.map(user => this.createUserCard(user)).join('')}
+            </div>
+        `;
+    }
+
+    renderGenericSearchResults(container, results, searchTerm) {
+        container.innerHTML = `
+            <div class="section-header">
+                <h2>Resultados da Busca</h2>
+                <div class="search-info">
+                    <span>${results.length} resultado(s) para "${searchTerm}"</span>
+                    <button class="btn btn-secondary" onclick="sistema.clearSearch()">
+                        <i class="fas fa-times"></i> Limpar Busca
+                    </button>
+                </div>
+            </div>
+            <div class="search-results">
+                <div class="search-categories">
+                    <h3>Pedidos (${results.filter(item => item.hasOwnProperty('status')).length})</h3>
+                    <div class="search-category-results">
+                        ${results.filter(item => item.hasOwnProperty('status')).map(order => this.createOrderCard(order)).join('')}
+                    </div>
+                    
+                    <h3>Produtos (${results.filter(item => item.hasOwnProperty('category')).length})</h3>
+                    <div class="search-category-results">
+                        ${results.filter(item => item.hasOwnProperty('category')).map(product => this.createProductCard(product)).join('')}
+                    </div>
+                    
+                    <h3>Clientes (${results.filter(item => item.hasOwnProperty('username')).length})</h3>
+                    <div class="search-category-results">
+                        ${results.filter(item => item.hasOwnProperty('username')).map(user => this.createUserCard(user)).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    clearSearch() {
+        document.getElementById('searchInput').value = '';
+        this.renderSectionContent(this.activeSection);
+    }
 
     showLoading() {
         document.getElementById('loading').classList.remove('hidden');
@@ -1010,6 +1211,27 @@ class SistemaPedidos {
                         <i class="fas fa-trash"></i> Excluir
                     </button>
                     ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    createUserCard(user) {
+        return `
+            <div class="user-card" data-user-id="${user.id}">
+                <div class="user-header">
+                    <h3 class="user-name">${user.name || user.username}</h3>
+                    <span class="user-profile">${user.profileId || 'Sem perfil'}</span>
+                </div>
+                <p class="user-info">${user.username}</p>
+                ${user.email ? `<p class="user-email">${user.email}</p>` : ''}
+                <div class="user-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="sistema.editUser('${user.id}')">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="sistema.deleteUser('${user.id}')">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
                 </div>
             </div>
         `;
@@ -2301,92 +2523,45 @@ class SistemaPedidos {
         const isEdit = !!product;
 
         const modalHTML = `
-<div class="modal-header">
-  <h2 class="modal-title">
-    ${isEdit ? 'Editar Produto' : 'Novo Produto'}
-  </h2>
-  <button type="button" class="modal-close" aria-label="Fechar">&times;</button>
-</div>
-
-<div class="modal-body">
-  <form id="productForm" novalidate>
-    
-    <!-- Nome -->
-    <div class="form-group">
-      <label for="productName">Nome do Produto</label>
-      <input 
-        type="text" 
-        id="productName" 
-        name="name" 
-        value="${product?.name || ''}" 
-        placeholder="Ex: X-Burger" 
-        required 
-      >
-      <small class="form-hint">Digite o nome como aparecerá no cardápio</small>
-    </div>
-
-    <!-- Preço -->
-    <div class="form-group">
-      <label for="productPrice">Preço (R$)</label>
-      <input 
-        type="number" 
-        id="productPrice" 
-        name="price" 
-        step="0.01" 
-        min="0" 
-        value="${product?.price || ''}" 
-        placeholder="0.00" 
-        required 
-      >
-    </div>
-
-    <!-- Descrição -->
-    <div class="form-group">
-      <label for="productDescription">Descrição</label>
-      <textarea 
-        id="productDescription" 
-        name="description" 
-        rows="3" 
-        placeholder="Ex: Pão artesanal, hambúrguer bovino 150g, queijo cheddar, alface, tomate..." 
-        required
-      >${product?.description || ''}</textarea>
-    </div>
-
-    <!-- Categoria -->
-    <div class="form-group">
-      <label for="productCategory">Categoria</label>
-      <select id="productCategory" name="category" required>
-        <option disabled selected value="">Selecione...</option>
-        <option value="lanches" ${product?.category === 'lanches' ? 'selected' : ''}>Lanches</option>
-        <option value="bebidas" ${product?.category === 'bebidas' ? 'selected' : ''}>Bebidas</option>
-        <option value="acompanhamentos" ${product?.category === 'acompanhamentos' ? 'selected' : ''}>Acompanhamentos</option>
-        <option value="sobremesas" ${product?.category === 'sobremesas' ? 'selected' : ''}>Sobremesas</option>
-      </select>
-    </div>
-
-    <!-- Ativo -->
-    <div class="form-group checkbox-group">
-      <input 
-        type="checkbox" 
-        id="productActive" 
-        name="active" 
-        ${product?.active !== false ? 'checked' : ''}
-      >
-      <label for="productActive">Produto Ativo</label>
-    </div>
-
-  </form>
-</div>
-
-<div class="modal-footer">
-  <button type="button" class="btn btn-secondary" id="cancelProductBtn">
-    Cancelar
-  </button>
-  <button type="submit" form="productForm" class="btn btn-primary" id="saveProductBtn">
-    ${isEdit ? 'Salvar Alterações' : 'Criar Produto'}
-  </button>
-</div>
-
+            <div class="modal-header">
+                <h3>${isEdit ? 'Editar' : 'Novo'} Produto</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="productForm">
+                    <div class="form-group">
+                        <label for="productName">Nome do Produto</label>
+                        <input type="text" id="productName" value="${product?.name || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="productPrice">Preço</label>
+                        <input type="number" id="productPrice" step="0.01" value="${product?.price || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="productDescription">Descrição</label>
+                        <textarea id="productDescription" required>${product?.description || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="productCategory">Categoria</label>
+                        <select id="productCategory" required>
+                            <option value="lanches" ${product?.category === 'lanches' ? 'selected' : ''}>Lanches</option>
+                            <option value="bebidas" ${product?.category === 'bebidas' ? 'selected' : ''}>Bebidas</option>
+                            <option value="acompanhamentos" ${product?.category === 'acompanhamentos' ? 'selected' : ''}>Acompanhamentos</option>
+                            <option value="sobremesas" ${product?.category === 'sobremesas' ? 'selected' : ''}>Sobremesas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="productActive" ${product?.active !== false ? 'checked' : ''}>
+                            Produto Ativo
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelProductBtn">Cancelar</button>
+                <button class="btn btn-primary" id="saveProductBtn">${isEdit ? 'Salvar' : 'Criar'}</button>
+            </div>
         `;
 
         this.renderModal(modalHTML, (modal) => {

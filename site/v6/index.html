@@ -42,12 +42,15 @@
         <!-- Header -->
         <header class="header">
             <div class="header-left">
+                <button id="sidebarToggle" class="sidebar-toggle" title="Alternar Menu">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <h1 id="sectionTitle">Dashboard</h1>
             </div>
             <div class="header-right">
                 <div class="search-bar">
                     <i class="fas fa-search"></i>
-                    <input type="text" placeholder="Buscar..." id="searchInput">
+                    <input type="text" placeholder="Buscar pedidos..." id="searchInput">
                 </div>
                 <div class="user-info">
                     <span id="currentUser">Usuário</span>
@@ -60,7 +63,7 @@
         </header>
 
         <!-- Sidebar (Desktop) -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <i class="fas fa-utensils"></i>
                 <span>Sistema de Pedidos</span>

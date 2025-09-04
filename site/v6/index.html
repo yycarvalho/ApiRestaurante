@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestão de Pedidos</title>
+    <link rel="stylesheet" href="styles/reset.css">
+    <link rel="stylesheet" href="styles/tokens.css">
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/components/components.css">
+    <link rel="stylesheet" href="styles/utilities.css">
+    <link rel="stylesheet" href="styles/states.css">
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +17,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <a href="#mainContent" class="skip-link">Pular para o conteúdo</a>
     <!-- Tela de Login -->
     <div id="loginScreen" class="login-screen">
         <div class="login-container">
@@ -40,7 +47,7 @@
     <!-- Sistema Principal -->
     <div id="mainSystem" class="main-system hidden">
         <!-- Header -->
-        <header class="header">
+        <header class="header" role="banner">
             <div class="header-left">
                 <button id="sidebarToggle" class="sidebar-toggle" title="Alternar Menu">
                     <i class="fas fa-bars"></i>
@@ -52,6 +59,15 @@
                     <i class="fas fa-search"></i>
                     <input type="text" placeholder="Buscar pedidos..." id="searchInput">
                 </div>
+                <button id="commandPaletteBtn" class="btn btn-icon" title="Comandos (Ctrl/Cmd K)" aria-haspopup="dialog" aria-controls="commandPalette" aria-expanded="false">
+                    <i class="fas fa-magic"></i>
+                </button>
+                <button id="densityToggle" class="btn btn-icon" title="Densidade (Comfort/Compact)">
+                    <i class="fas fa-compress-arrows-alt"></i>
+                </button>
+                <button id="themeToggle" class="btn btn-icon" title="Tema (Claro/Escuro)" aria-pressed="false">
+                    <i class="fas fa-moon"></i>
+                </button>
                 <div class="user-info">
                     <span id="currentUser">Usuário</span>
                     <span id="currentProfile">Perfil</span>
@@ -97,7 +113,7 @@
         </aside>
 
         <!-- Conteúdo Principal -->
-        <main class="main-content">
+        <main id="mainContent" class="main-content" role="main">
             <!-- Seções de conteúdo -->
             <section id="dashboardSection" class="content-section active"></section>
             <section id="pedidosSection" class="content-section"></section>
@@ -136,6 +152,22 @@
         </nav>
     </div>
 
+    <!-- Command Palette -->
+    <div id="commandPalette" class="cmd-palette" role="dialog" aria-modal="true" aria-labelledby="cmdTitle" hidden>
+        <div class="cmd-surface" role="document">
+            <div class="cmd-header">
+                <h2 id="cmdTitle">Comandos</h2>
+                <button class="cmd-close" id="cmdClose" aria-label="Fechar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="cmd-search">
+                <input id="cmdInput" type="text" placeholder="Digite um comando ou pesquise..." autocomplete="off">
+            </div>
+            <div id="cmdList" class="cmd-list" role="listbox" aria-label="Resultados"></div>
+        </div>
+    </div>
+
     <!-- Modais -->
     <div id="modalContainer"></div>
 
@@ -149,6 +181,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="script.js"></script>
+    <script type="module" src="/site/v6/utils/keyboard-shortcuts.js"></script>
+    <script type="module" src="/site/v6/services/request-logger.js"></script>
+    <script type="module" src="/site/v6/components/theme-toggle.js"></script>
+    <script type="module" src="/site/v6/components/command-palette.js"></script>
 
 </body>
 </html>

@@ -1,0 +1,28 @@
+html, body { height: 100%; }
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  line-height: var(--line-height);
+}
+
+.skip-link {
+  position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden;
+}
+.skip-link:focus { position: fixed; left: var(--space-4); top: var(--space-4); width: auto; height: auto; padding: var(--space-2) var(--space-3); background: var(--color-primary); color: white; border-radius: var(--radius-1); z-index: var(--z-overlay); }
+
+.btn.btn-icon { background: transparent; border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 8px; border-radius: var(--radius-1); box-shadow: none; cursor: pointer; transition: background var(--dur-1) var(--ease-1), border-color var(--dur-1) var(--ease-1); }
+.btn.btn-icon:hover { background: var(--color-elevated); }
+
+.cmd-palette[hidden] { display: none; }
+.cmd-palette { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: var(--z-overlay); display: grid; place-items: start center; padding-top: 10vh; }
+.cmd-surface { width: min(720px, 92vw); background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius-2); box-shadow: var(--shadow-2); overflow: hidden; }
+.cmd-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
+.cmd-search { padding: var(--space-3) var(--space-4); }
+.cmd-search input { width: 100%; padding: var(--space-3); border-radius: var(--radius-1); border: 1px solid var(--color-border); background: var(--color-elevated); color: var(--color-text); }
+.cmd-list { max-height: 50vh; overflow: auto; display: grid; gap: 2px; background: var(--color-elevated); border-top: 1px solid var(--color-border); padding: 2px; }
+.cmd-item { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-1); cursor: pointer; }
+.cmd-item[aria-selected="true"], .cmd-item:hover { background: color-mix(in oklch, var(--color-primary) 18%, transparent); }
+.cmd-kbd { margin-left: auto; opacity: .7; font-size: var(--font-size-1); border: 1px solid var(--color-border); border-bottom-width: 2px; border-radius: var(--radius-1); padding: 2px 6px; }
+
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

@@ -1,0 +1,3 @@
+.is-loading { cursor: progress; }
+.toast-container { z-index: var(--z-toast); }
+.theme-dark .header, [data-theme="dark"] .header { background: var(--color-surface); }

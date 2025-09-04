@@ -1,0 +1,6 @@
+/* Component layer supplements without breaking existing CSS */
+.header { position: sticky; top: 0; z-index: var(--z-header); background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.bottom-nav { background: var(--color-surface); border-top: 1px solid var(--color-border); }
+.search-bar input { background: var(--color-elevated); border: 1px solid var(--color-border); color: var(--color-text); border-radius: var(--radius-1); }
+.logout-btn { border: 1px solid var(--color-border); border-radius: var(--radius-1); }
+.loading .spinner { border-color: var(--color-border); border-top-color: var(--color-primary); }

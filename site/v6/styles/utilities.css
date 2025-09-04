@@ -1,0 +1,5 @@
+.hidden { display: none !important; }
+.u-compact .content-section { --section-padding: var(--space-3); }
+.u-compact .data-table td, .u-compact .data-table th { padding: 6px 8px; }
+.visually-hidden { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap; }
+.cv-auto { content-visibility: auto; contain-intrinsic-size: 600px; }

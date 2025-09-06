@@ -90,7 +90,7 @@ public class OrderHandler extends BaseHandler {
 		Order createdOrder = services.getOrderService().create(newOrder);
 
 		// Notificar via WebSocket
-		notifyOrderChange();
+		notifyOrderChange("/novo_pedidos/" + createdOrder.getId());
 
 		sendCreatedResponse(exchange, createdOrder);
 	}
@@ -134,7 +134,8 @@ public class OrderHandler extends BaseHandler {
 		Order updatedOrder = services.getOrderService().updateStatus(orderId, newStatus);
 
 		// Notificar via WebSocket sobre mudança no pedido e no chat
-		notifyOrderChange();
+		notifyOrderChange(
+				"/status_pedidos/" + orderId + "/" + newStatus.substring(0, 1).toUpperCase() + newStatus.substring(1));
 		notifyOrderChat(orderId);
 
 		sendSuccessResponse(exchange, updatedOrder);
@@ -143,6 +144,14 @@ public class OrderHandler extends BaseHandler {
 	private void notifyOrderChange() {
 		try {
 			NotificacaoWebSocketServer.enviarNotificacao("/pedidos");
+		} catch (Exception e) {
+			log.warn("Failed to send WebSocket notification for order change", e);
+		}
+	}
+
+	private void notifyOrderChange(String notify) {
+		try {
+			NotificacaoWebSocketServer.enviarNotificacao(notify);
 		} catch (Exception e) {
 			log.warn("Failed to send WebSocket notification for order change", e);
 		}

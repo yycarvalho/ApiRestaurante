@@ -114,6 +114,7 @@ public class ApiController {
 
 	private void configureRoutes(HttpServer server) {
 		// Rotas de autenticação
+
 		server.createContext("/api/auth/login", handlers.getAuthHandler()::handleLogin);
 		server.createContext("/api/auth/logout", handlers.getAuthHandler()::handleLogout);
 		server.createContext("/api/auth/validate", handlers.getAuthHandler()::handleValidateToken);
